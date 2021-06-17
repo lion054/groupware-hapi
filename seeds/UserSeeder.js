@@ -18,31 +18,34 @@ module.exports = async function () {
   });
 
   // at the first, clean up old collections and graph
-  const collections = await db.collections();
-  for (let collection of collections) {
-    if (collection.name === 'users' || collection.name === 'work_at') {
-      await collection.drop();
-    }
+  let usersCollection = db.collection('users');
+  let found = await usersCollection.exists();
+  if (found) {
+    await usersCollection.drop();
   }
-  const graphs = await db.graphs();
-  for (let graph of graphs) {
-    if (graph.name === 'employment') {
-      await graph.drop();
-    }
+  workAtCollection = db.collection('work_at');
+  found = await workAtCollection.exists();
+  if (found) {
+    await workAtCollection.drop();
+  }
+  let graph = db.graph('employment');
+  found = await graph.exists();
+  if (found) {
+    await graph.drop();
   }
 
   // create new collections
-  const usersCollection = db.collection('users');
+  usersCollection = db.collection('users');
   await usersCollection.create({
     type: CollectionType.DOCUMENT_COLLECTION
   });
-  const workAtCollection = db.collection('work_at');
+  workAtCollection = db.collection('work_at');
   await workAtCollection.create({
     type: CollectionType.EDGE_COLLECTION
   });
 
   // create new graph
-  const graph = db.graph('employment');
+  graph = db.graph('employment');
   const info = await graph.create([{
     collection: 'work_at',
     from: ['users'],
@@ -50,7 +53,6 @@ module.exports = async function () {
   }]);
 
   // create a few users about every company
-  usersCollection.all
   const cursor = await db.query(aql`
     FOR x IN companies
     RETURN x

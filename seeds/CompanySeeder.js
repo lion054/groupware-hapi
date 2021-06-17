@@ -13,15 +13,14 @@ module.exports = async function () {
   });
 
   // at the first, clean up old collection
-  const collections = await db.collections();
-  for (let collection of collections) {
-    if (collection.name === 'companies') {
-      await collection.drop();
-    }
+  let collection = db.collection('companies');
+  const found = await collection.exists();
+  if (found) {
+    await collection.drop();
   }
 
   // create new collection
-  const collection = db.collection('companies');
+  collection = db.collection('companies');
   await collection.create({
     type: CollectionType.DOCUMENT_COLLECTION
   });
