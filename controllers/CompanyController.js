@@ -36,7 +36,7 @@ server.route({
       bindVars: {}
     };
     if (!!request.query.search) {
-      query.query.push('FILTER x.name LIKE @search');
+      query.query.push('FILTER CONTAINS(x.name, @search)');
       query.bindVars.search = request.query.search;
     }
     if (!!request.query.sort_by) {
@@ -209,5 +209,38 @@ server.route({
       returnNew: true
     });
     return company.new;
+  }
+});
+
+// show the users that is employed by a company
+
+server.route({
+  method: 'GET',
+  path: '/companies/{key}/users',
+  options: {
+    validate: {
+      params: validateParams,
+      failAction: (request, h, err) => {
+        throw err;
+      }
+    }
+  },
+  handler: async (request, h) => {
+    const { key } = request.params;
+    // exclude sensitive info from all records of result
+    const cursor = await db.query({
+      query: `
+        FOR vertex, edge, path IN 1..1
+        INBOUND @startVertex
+        GRAPH "employment"
+        FILTER STARTS_WITH(vertex._id, "users/")
+        RETURN UNSET(vertex, "password")
+      `,
+      bindVars: {
+        startVertex: `companies/${key}`
+      }
+    });
+    const documents = await cursor.all();
+    return documents;
   }
 });

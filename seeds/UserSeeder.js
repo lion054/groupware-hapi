@@ -1,4 +1,4 @@
-const { CollectionType, Database, aql } = require('arangojs');
+const { CollectionType, Database } = require('arangojs');
 const faker = require('faker');
 const md5 = require('md5');
 const { deleteDirectory, downloadImage } = require('./helpers');
@@ -53,7 +53,7 @@ module.exports = async function () {
   }]);
 
   // create a few users about every company
-  const cursor = await db.query(aql`
+  const cursor = await db.query(`
     FOR x IN companies
     RETURN x
   `);

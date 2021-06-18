@@ -1,6 +1,8 @@
 const Joi = require('@hapi/joi');
 const Boom = require('@hapi/boom');
+const md5 = require('md5');
 const { server, db } = require('../server');
+const { checkUnique } = require('../helpers');
 
 const validateParams = async (value, options) => {
   const users = db.collection('users');
@@ -36,7 +38,7 @@ server.route({
       bindVars: {}
     };
     if (!!request.query.search) {
-      query.query.push('FILTER x.name LIKE @search || x.email LIKE @search');
+      query.query.push('FILTER CONTAINS(x.name, @search) || CONTAINS(x.email, @search)');
       query.bindVars.search = request.query.search;
     }
     if (!!request.query.sort_by) {
@@ -46,7 +48,8 @@ server.route({
       query.query.push('LIMIT 0, @limit');
       query.bindVars.limit = request.query.limit;
     }
-    query.query.push('RETURN x');
+    // exclude sensitive info from all records of result
+    query.query.push('RETURN UNSET(x, "password")');
     query.query = query.query.join(' ');
 
     const cursor = await db.query(query);
@@ -71,8 +74,9 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     const users = db.collection('users');
-    const user = await users.document(key);
-    return user;
+    // exclude sensitive info from record of result
+    const { password, ...rest } = await users.document(key);
+    return rest;
   }
 });
 
@@ -85,7 +89,11 @@ server.route({
     validate: {
       payload: Joi.object({
         name: Joi.string().trim().required(),
-        since: Joi.date().required()
+        email: Joi.string().email().required(),
+        password: Joi.string().min(6).required(),
+        password_confirmation: Joi.any().equal(
+          Joi.ref('password')
+        ).required()
       }),
       options: {
         abortEarly: false
@@ -96,14 +104,20 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { name, since } = request.payload;
+    const { name, email, password } = request.payload; // don't save password_confirmation in record
+    const unique = await checkUnique('users', 'email', email);
+    if (!unique) {
+      throw Boom.conflict('This email address was registered already');
+    }
     const users = db.collection('users');
     const user = await users.save({
       name,
-      since
+      email,
+      password: md5(password)
     }, {
       returnNew: true
     });
+    delete user.new.password; // exclude sensitive info from record of result
     return user.new;
   }
 });
@@ -118,7 +132,14 @@ server.route({
       params: validateParams,
       payload: Joi.object({
         name: Joi.string().trim(),
-        since: Joi.date()
+        email: Joi.string().email(),
+        password_confirmation: Joi.when('password', {
+          is: Joi.exist(),
+          then: Joi.any().valid(
+            Joi.ref('password')
+          ).required()
+        }),
+        password: Joi.string().min(6)
       }),
       options: {
         abortEarly: false
@@ -130,18 +151,22 @@ server.route({
   },
   handler: async (request, h) => {
     const { key } = request.params;
-    const { name, since } = request.payload;
+    const { name, email, password } = request.payload; // don't save password_confirmation in record
     const data = {};
     if (!!name) {
       data.name = name;
     }
-    if (!!since) {
-      data.since = since;
+    if (!!email) {
+      data.email = email;
+    }
+    if (!!password) {
+      data.password = md5(password);
     }
     const users = db.collection('users');
     const user = await users.update(key, data, {
       returnNew: true
     });
+    delete user.new.password; // exclude sensitive info from record of result
     return user.new;
   }
 });
@@ -156,7 +181,7 @@ server.route({
       params: validateParams,
       payload: Joi.object({
         forever: Joi.boolean()
-      }).allow(null),
+      }).allow(null), // will be null if it doesn't contain any field
       options: {
         abortEarly: false
       },
@@ -181,7 +206,8 @@ server.route({
       }, {
         returnNew: true
       });
-      return user.new;
+      const { password, ...rest } = user.new; // exclude sensitive info from record of result
+      return rest;
     }
   }
 });
@@ -208,6 +234,81 @@ server.route({
       keepNull: false, // will not keep "deleted_at" field
       returnNew: true
     });
-    return user.new;
+    const { password, ...rest } = user.new; // exclude sensitive info from record of result
+    return rest;
+  }
+});
+
+// show a company that user is employed
+
+server.route({
+  method: 'GET',
+  path: '/users/{key}/company',
+  options: {
+    validate: {
+      params: validateParams,
+      failAction: (request, h, err) => {
+        throw err;
+      }
+    }
+  },
+  handler: async (request, h) => {
+    const { key } = request.params;
+    const cursor = await db.query({
+      query: `
+        FOR vertex, edge, path IN 1..1
+        OUTBOUND @startVertex
+        GRAPH @graph
+        FILTER STARTS_WITH(vertex._id, @prefix)
+        RETURN vertex
+      `,
+      bindVars: {
+        startVertex: `users/${key}`,
+        graph: 'employment',
+        prefix: 'companies/'
+      }
+    });
+    const documents = await cursor.all();
+    if (documents.length > 0) {
+      return documents[0];
+    }
+    throw Boom.notFound(`This user is not employed by any company`);
+  }
+});
+
+// show the collegues that user works together in company
+
+server.route({
+  method: 'GET',
+  path: '/users/{key}/collegues',
+  options: {
+    validate: {
+      params: validateParams,
+      failAction: (request, h, err) => {
+        throw err;
+      }
+    }
+  },
+  handler: async (request, h) => {
+    const { key } = request.params;
+    // use "ANY" direction, because startVertex->company is opposite of company->colledge in direction
+    // exclude sensitive info from record of result
+    const cursor = await db.query({
+      query: `
+        FOR vertex, edge, path IN 2..2
+        ANY @startVertex
+        GRAPH @graph
+        FILTER STARTS_WITH(vertex._id, @prefix) && vertex._key != @key
+        RETURN UNSET(vertex, "password")
+      `,
+      bindVars: {
+        startVertex: `users/${key}`,
+        graph: 'employment',
+        prefix: 'users/',
+        key
+      }
+    });
+    const documents = await cursor.all();
+    return documents;
   }
 });
