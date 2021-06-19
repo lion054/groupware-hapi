@@ -11,7 +11,7 @@ const validateParams = async (value, options) => {
   throw Boom.notFound(`This company does not exist`);
 }
 
-// list all companies
+// find some companies
 
 server.route({
   method: 'GET',

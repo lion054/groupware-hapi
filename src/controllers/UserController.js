@@ -13,7 +13,7 @@ const validateParams = async (value, options) => {
   throw Boom.notFound(`This user does not exist`);
 }
 
-// list all users
+// find some users
 
 server.route({
   method: 'GET',
