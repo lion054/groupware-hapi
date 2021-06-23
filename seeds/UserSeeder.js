@@ -5,7 +5,7 @@ const { deleteDirectory, downloadImage } = require('./helpers');
 
 module.exports = async function () {
   // remove the existing user avatars from local disk
-  deleteDirectory('/storage/users');
+  deleteDirectory('../storage/users');
 
   // create db connection
   const db = new Database({

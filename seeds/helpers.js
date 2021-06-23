@@ -24,7 +24,9 @@ module.exports = {
   deleteDirectory: (subDir) => {
     const dirPath = path.join(__dirname, subDir);
     if (fs.existsSync(dirPath)) {
-      fs.rmdirSync(dirPath);
+      fs.rmdirSync(dirPath, {
+        recursive: true
+      });
     }
   },
   downloadImage: async (collectionName, key) => {
