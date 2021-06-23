@@ -112,7 +112,7 @@ server.route({
 // update a company
 
 server.route({
-  method: 'PUT',
+  method: 'PATCH',
   path: '/companies/{key}',
   options: {
     validate: {
@@ -158,8 +158,8 @@ server.route({
     validate: {
       params: validateParams,
       payload: Joi.object({
-        forever: Joi.boolean()
-      }).allow(null), // must allow null if it doesn't contain any field
+        mode: Joi.string().valid('erase', 'trash', 'restore'),
+      }),
       options: {
         abortEarly: false
       },
@@ -170,48 +170,27 @@ server.route({
   },
   handler: async (request, h) => {
     const { key } = request.params;
-    if (!request.payload) { // will be null if it doesn't contain any field
-      request.payload = {};
-    }
-    const { forever } = request.payload;
+    const { mode } = request.payload;
     const companies = db.collection('companies');
-    if (forever) {
+    if (mode === 'erase') {
       await companies.remove(key);
       return h.response().code(204);
-    } else {
+    } else if (mode === 'trash') {
       const company = await companies.update(key, {
         deleted_at: new Date()
       }, {
         returnNew: true
       });
       return company.new;
+    } else if (mode === 'restore') {
+      const company = await companies.update(key, {
+        deleted_at: null
+      }, {
+        keepNull: false, // will not keep "deleted_at" field
+        returnNew: true
+      });
+      return company.new;
     }
-  }
-});
-
-// restore a company
-
-server.route({
-  method: 'PATCH',
-  path: '/companies/{key}',
-  options: {
-    validate: {
-      params: validateParams,
-      failAction: (request, h, err) => {
-        throw err;
-      }
-    }
-  },
-  handler: async (request, h) => {
-    const { key } = request.params;
-    const companies = db.collection('companies');
-    const company = await companies.update(key, {
-      deleted_at: null
-    }, {
-      keepNull: false, // will not keep "deleted_at" field
-      returnNew: true
-    });
-    return company.new;
   }
 });
 

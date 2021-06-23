@@ -126,7 +126,7 @@ server.route({
 // update a user
 
 server.route({
-  method: 'PUT',
+  method: 'PATCH',
   path: '/users/{key}',
   options: {
     validate: {
@@ -183,8 +183,8 @@ server.route({
     validate: {
       params: validateParams,
       payload: Joi.object({
-        forever: Joi.boolean()
-      }).allow(null), // will be null if it doesn't contain any field
+        mode: Joi.string().valid('erase', 'trash', 'restore'),
+      }),
       options: {
         abortEarly: false
       },
@@ -195,15 +195,12 @@ server.route({
   },
   handler: async (request, h) => {
     const { key } = request.params;
-    if (!request.payload) { // will be null if it doesn't contain any field
-      request.payload = {};
-    }
-    const { forever } = request.payload;
+    const { mode } = request.payload;
     const users = db.collection('users');
-    if (forever) {
+    if (mode === 'erase') {
       await users.remove(key);
       return h.response().code(204);
-    } else {
+    } else if (mode === 'trash') {
       const user = await users.update(key, {
         deleted_at: new Date()
       }, {
@@ -211,34 +208,16 @@ server.route({
       });
       const { password, ...rest } = user.new; // exclude sensitive info from record of result
       return rest;
+    } else if (mode === 'restore') {
+      const user = await users.update(key, {
+        deleted_at: null
+      }, {
+        keepNull: false, // will not keep "deleted_at" field
+        returnNew: true
+      });
+      const { password, ...rest } = user.new; // exclude sensitive info from record of result
+      return rest;
     }
-  }
-});
-
-// restore a user
-
-server.route({
-  method: 'PATCH',
-  path: '/users/{key}',
-  options: {
-    validate: {
-      params: validateParams,
-      failAction: (request, h, err) => {
-        throw err;
-      }
-    }
-  },
-  handler: async (request, h) => {
-    const { key } = request.params;
-    const users = db.collection('users');
-    const user = await users.update(key, {
-      deleted_at: null
-    }, {
-      keepNull: false, // will not keep "deleted_at" field
-      returnNew: true
-    });
-    const { password, ...rest } = user.new; // exclude sensitive info from record of result
-    return rest;
   }
 });
 
