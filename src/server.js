@@ -6,7 +6,7 @@ const server = Hapi.server({
   port: process.env.PORT,
   routes: {
     cors: {
-      origin: ['*'] // an array of origins or 'ignore'
+      origin: [process.env.ORIGIN_ALLOWED] // an array of origins or 'ignore'
     }
   }
 });
