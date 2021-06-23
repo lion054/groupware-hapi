@@ -31,25 +31,23 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const query = {
-      query: ['FOR x IN companies'],
-      bindVars: {}
-    };
+    let query = ['FOR x IN companies'];
+    const bindVars = {};
     if (!!request.query.search) {
-      query.query.push('FILTER CONTAINS(x.name, @search)');
-      query.bindVars.search = request.query.search;
+      query.push('FILTER CONTAINS(x.name, @search)');
+      bindVars.search = request.query.search;
     }
     if (!!request.query.sort_by) {
-      query.query.push(`SORT x.${request.query.sort_by} ASC`);
+      query.push(`SORT x.${request.query.sort_by} ASC`);
     }
     if (!!request.query.limit) {
-      query.query.push('LIMIT 0, @limit');
-      query.bindVars.limit = request.query.limit;
+      query.push('LIMIT 0, @limit');
+      bindVars.limit = request.query.limit;
     }
-    query.query.push('RETURN x');
-    query.query = query.query.join(' ');
+    query.push('RETURN x');
+    query = query.join(' ');
 
-    const cursor = await db.query(query);
+    const cursor = await db.query({ query, bindVars });
     const documents = await cursor.all();
     return documents;
   }
