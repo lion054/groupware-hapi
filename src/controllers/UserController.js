@@ -108,10 +108,13 @@ server.route({
       throw Boom.conflict('This email address was registered already');
     }
     const users = db.collection('users');
+    const now = new Date().toISOString();
     const user = await users.save({
       name,
       email,
-      password: md5(password)
+      password: md5(password),
+      created_at: now,
+      modified_at: now
     }, {
       returnNew: true
     });
@@ -150,7 +153,9 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     const { name, email, password } = request.payload; // don't save password_confirmation in record
-    const data = {};
+    const data = {
+      modified_at: new Date().toISOString()
+    };
     if (!!name) {
       data.name = name;
     }

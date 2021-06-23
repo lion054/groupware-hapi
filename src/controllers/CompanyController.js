@@ -96,9 +96,12 @@ server.route({
   handler: async (request, h) => {
     const { name, since } = request.payload;
     const companies = db.collection('companies');
+    const now = new Date().toISOString();
     const company = await companies.save({
       name,
-      since
+      since,
+      created_at: now,
+      modified_at: now
     }, {
       returnNew: true
     });
@@ -129,7 +132,9 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     const { name, since } = request.payload;
-    const data = {};
+    const data = {
+      modified_at: new Date().toISOString()
+    };
     if (!!name) {
       data.name = name;
     }

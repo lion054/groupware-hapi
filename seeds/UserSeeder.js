@@ -64,22 +64,29 @@ module.exports = async function () {
     });
     for (let i = 0; i < count; i++) {
       // create user
+      let now = new Date().toISOString();
       const meta = await usersCollection.save({
         name: faker.name.findName(),
         email: faker.internet.email(),
-        password: md5('123456')
+        password: md5('123456'),
+        created_at: now,
+        modified_at: now
       });
       // create the avatar
       const fileName = await downloadImage('users', meta._key);
       await usersCollection.update(meta._key, {
-        avatar: `users/${meta._key}/${fileName}`
+        avatar: `users/${meta._key}/${fileName}`,
+        modified_at: new Date().toISOString()
       });
       // register user to company
+      now = new Date().toISOString();
       await workAtCollection.save({
         _from: meta._id,
         _to: company._id,
         since: faker.date.past(15),
-        position: faker.name.jobTitle()
+        position: faker.name.jobTitle(),
+        created_at: now,
+        modified_at: now
       });
     }
   });
