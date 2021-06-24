@@ -1,6 +1,8 @@
 const Joi = require('@hapi/joi');
 const Boom = require('@hapi/boom');
+const { CollectionType } = require('arangojs');
 const { server, db } = require('../server');
+const { hasCollection } = require('../helpers');
 
 const validateParams = async (value, options) => {
   const companies = db.collection('companies');
@@ -68,8 +70,7 @@ server.route({
   },
   handler: async (request, h) => {
     const { key } = request.params;
-    const companies = db.collection('companies');
-    const company = await companies.document(key);
+    const company = await db.collection('companies').document(key);
     return company;
   }
 });
@@ -95,9 +96,14 @@ server.route({
   },
   handler: async (request, h) => {
     const { name, since } = request.payload;
-    const companies = db.collection('companies');
+    const found = await hasCollection('companies');
+    if (!found) {
+      await db.createCollection('companies', {
+        type: CollectionType.DOCUMENT_COLLECTION
+      });
+    }
     const now = new Date().toISOString();
-    const company = await companies.save({
+    const meta = await db.collection('companies').save({
       name,
       since,
       created_at: now,
@@ -105,7 +111,7 @@ server.route({
     }, {
       returnNew: true
     });
-    return company.new;
+    return meta.new;
   }
 });
 
@@ -141,11 +147,10 @@ server.route({
     if (!!since) {
       data.since = since;
     }
-    const companies = db.collection('companies');
-    const company = await companies.update(key, data, {
+    const meta = await db.collection('companies').update(key, data, {
       returnNew: true
     });
-    return company.new;
+    return meta.new;
   }
 });
 
@@ -171,25 +176,24 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     const { mode } = request.payload;
-    const companies = db.collection('companies');
     if (mode === 'erase') {
-      await companies.remove(key);
+      await db.collection('companies').remove(key);
       return h.response().code(204);
     } else if (mode === 'trash') {
-      const company = await companies.update(key, {
+      const meta = await db.collection('companies').update(key, {
         deleted_at: new Date()
       }, {
         returnNew: true
       });
-      return company.new;
+      return meta.new;
     } else if (mode === 'restore') {
-      const company = await companies.update(key, {
+      const meta = await db.collection('companies').update(key, {
         deleted_at: null
       }, {
         keepNull: false, // will not keep "deleted_at" field
         returnNew: true
       });
-      return company.new;
+      return meta.new;
     }
   }
 });

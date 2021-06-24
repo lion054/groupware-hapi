@@ -2,17 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const uuidv4 = require('uuid').v4;
 const request = require('request');
-
-function createNestedDirectory(dirs) {
-  let dirPath = __dirname;
-  for (const dir of dirs) {
-    dirPath = path.join(dirPath, dir);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath);
-    }
-  }
-  return dirPath;
-}
+const { createNestedDirectory } = require('../src/helpers');
 
 function sleep(duration) {
   return new Promise(resolve => {
