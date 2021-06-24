@@ -5,7 +5,7 @@ const path = require('path');
 const md5 = require('md5');
 const { CollectionType } = require('arangojs');
 const { server, db } = require('../server');
-const { hasCollection, checkUnique, createNestedDirectory, acceptFile } = require('../helpers');
+const { hasCollection, checkUnique, createNestedDirectory, deleteDirectory, acceptFile } = require('../helpers');
 
 const validateParams = async (value, options) => {
   const found = await db.collection('users').documentExists(value.key);
@@ -241,6 +241,7 @@ server.route({
     const { key } = request.params;
     const { mode } = request.payload;
     if (mode === 'erase') {
+      deleteDirectory(`../storage/users/${key}`);
       await db.collection('users').remove(key);
       return h.response().code(204);
     } else if (mode === 'trash') {

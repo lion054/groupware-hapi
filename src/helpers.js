@@ -3,47 +3,6 @@ const fs = require('fs');
 const uuidv4 = require('uuid').v4;
 const { db } = require('./server');
 
-async function hasCollection(name) {
-  const collections = await db.listCollections();
-  const found = collections.find(x => x.name === name);
-  return !!found;
-}
-
-async function checkUnique(collectionName, field, value, excludingKey = false) {
-  let query, bindVars;
-  if (!excludingKey) {
-    query = `
-      FOR x IN ${collectionName}
-      FILTER x.${field} == @value
-      COLLECT WITH COUNT INTO length
-      RETURN length
-    `;
-    bindVars = { value };
-  } else {
-    query = `
-      FOR x IN ${collectionName}
-      FILTER x.${field} == @value && x._key <> @excludingKey
-      COLLECT WITH COUNT INTO length
-      RETURN length
-    `;
-    bindVars = { value, excludingKey };
-  }
-  const cursor = await db.query({ query, bindVars });
-  const result = await cursor.all();
-  return result[0] === 0;
-}
-
-function createNestedDirectory(dirs) {
-  let dirPath = __dirname;
-  for (const dir of dirs) {
-    dirPath = path.join(dirPath, dir);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath);
-    }
-  }
-  return dirPath;
-}
-
 function acceptSingleFile(file, options) {
   const { destDir, fileFilter } = options;
   if (!file) {
@@ -86,13 +45,54 @@ function acceptMultipleFiles(files, options) {
   return Promise.all(promises);
 }
 
-function acceptFile(file, options) {
-  return Array.isArray(file) ? acceptMultipleFiles(file, options) : acceptSingleFile(file, options);
-}
-
 module.exports = {
-  hasCollection,
-  checkUnique,
-  createNestedDirectory,
-  acceptFile
+  hasCollection: async (name) => {
+    const collections = await db.listCollections();
+    const found = collections.find(x => x.name === name);
+    return !!found;
+  },
+  checkUnique: async (collectionName, field, value, excludingKey = false) => {
+    let query, bindVars;
+    if (!excludingKey) {
+      query = `
+        FOR x IN ${collectionName}
+        FILTER x.${field} == @value
+        COLLECT WITH COUNT INTO length
+        RETURN length
+      `;
+      bindVars = { value };
+    } else {
+      query = `
+        FOR x IN ${collectionName}
+        FILTER x.${field} == @value && x._key <> @excludingKey
+        COLLECT WITH COUNT INTO length
+        RETURN length
+      `;
+      bindVars = { value, excludingKey };
+    }
+    const cursor = await db.query({ query, bindVars });
+    const result = await cursor.all();
+    return result[0] === 0;
+  },
+  createNestedDirectory: (dirs) => {
+    let dirPath = __dirname;
+    for (const dir of dirs) {
+      dirPath = path.join(dirPath, dir);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath);
+      }
+    }
+    return dirPath;
+  },
+  deleteDirectory: (subDir) => {
+    const dirPath = path.join(__dirname, subDir);
+    if (fs.existsSync(dirPath)) {
+      fs.rmdirSync(dirPath, {
+        recursive: true
+      });
+    }
+  },
+  acceptFile: (file, options) => {
+    return Array.isArray(file) ? acceptMultipleFiles(file, options) : acceptSingleFile(file, options);
+  }
 };

@@ -11,14 +11,6 @@ function sleep(duration) {
 }
 
 module.exports = {
-  deleteDirectory: (subDir) => {
-    const dirPath = path.join(__dirname, subDir);
-    if (fs.existsSync(dirPath)) {
-      fs.rmdirSync(dirPath, {
-        recursive: true
-      });
-    }
-  },
   downloadImage: async (collectionName, key) => {
     const dirPath = createNestedDirectory(['..', 'storage', collectionName, key]);
     const fileName = uuidv4() + '.jpg';

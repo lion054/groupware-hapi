@@ -1,7 +1,8 @@
 const { CollectionType, Database } = require('arangojs');
 const faker = require('faker');
 const md5 = require('md5');
-const { deleteDirectory, downloadImage } = require('./helpers');
+const { downloadImage } = require('./helpers');
+const { deleteDirectory } = require('../src/helpers');
 
 module.exports = async function () {
   // remove the existing user avatars from local disk
