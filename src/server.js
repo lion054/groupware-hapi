@@ -11,6 +11,10 @@ const server = Hapi.server({
   }
 });
 
+// change api endpoint as following:
+// http://localhost:5050/api/v1/users
+server.realm.modifiers.route.prefix = '/api/v1';
+
 const db = new Database({
   url: `http://${process.env.DB_HOST}:${process.env.DB_PORT}`,
   databaseName: process.env.DB_DATABASE,
