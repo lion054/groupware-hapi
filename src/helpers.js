@@ -1,15 +1,15 @@
-const path = require('path');
-const fs = require('fs');
-const uuidv4 = require('uuid').v4;
-const { db } = require('./server');
+const path = require("path");
+const fs = require("fs");
+const uuidv4 = require("uuid").v4;
+const { db } = require("./server");
 
 function acceptSingleFile(file, options) {
   const { destDir, fileFilter } = options;
   if (!file) {
-    throw new Error('No file');
+    throw new Error("No file");
   }
   if (fileFilter && !fileFilter(file.hapi.filename)) {
-    throw new Error('This file type is not allowed');
+    throw new Error("This file type is not allowed");
   }
   const fileName = uuidv4() + path.extname(file.hapi.filename);
   const filePath = path.join(destDir, fileName);
@@ -17,17 +17,17 @@ function acceptSingleFile(file, options) {
 
   return new Promise((resolve, reject) => {
     const rx = /form-data; name=\"((?=[\S\s])[\S\s]*)\"; filename=\"((?=[\S\s])[\S\s]*)\"/;
-    const matches = rx.exec(file.hapi.headers['content-disposition']);
-    file.on('error', (err) => {
+    const matches = rx.exec(file.hapi.headers["content-disposition"]);
+    file.on("error", (err) => {
       reject(err);
     });
     file.pipe(fileStream);
-    file.on('end', (err) => {
+    file.on("end", (err) => {
       const fileDetails = {
         fieldName: matches && matches[1],
         originalName: file.hapi.filename,
         fileName,
-        mimeType: file.hapi.headers['content-type'],
+        mimeType: file.hapi.headers["content-type"],
         destination: options.destDir,
         filePath,
         fileSize: fs.statSync(filePath).size
@@ -39,7 +39,7 @@ function acceptSingleFile(file, options) {
 
 function acceptMultipleFiles(files, options) {
   if (!files || !Array.isArray(files)) {
-    throw new Error('No files');
+    throw new Error("No files");
   }
   const promises = files.map(x => singleFileHandler(x, options));
   return Promise.all(promises);

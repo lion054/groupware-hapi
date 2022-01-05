@@ -1,11 +1,11 @@
-const Joi = require('@hapi/joi');
-const Boom = require('@hapi/boom');
-const { CollectionType } = require('arangojs');
-const { server, db } = require('../server');
-const { hasCollection } = require('../helpers');
+const Joi = require("@hapi/joi");
+const Boom = require("@hapi/boom");
+const { CollectionType } = require("arangojs");
+const { server, db } = require("../server");
+const { hasCollection } = require("../helpers");
 
 const validateParams = async (value, options) => {
-  const companies = db.collection('companies');
+  const companies = db.collection("companies");
   const found = await companies.documentExists(value.key);
   if (found) {
     return value;
@@ -16,12 +16,12 @@ const validateParams = async (value, options) => {
 // find some companies
 
 server.route({
-  method: 'GET',
-  path: '/companies',
+  method: "GET",
+  path: "/companies",
   options: {
     validate: {
       query: Joi.object({
-        sort_by: Joi.string().valid('name', 'since'),
+        sort_by: Joi.string().valid("name", "since"),
         limit: Joi.number().integer().min(5).max(100)
       }),
       options: {
@@ -33,21 +33,21 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    let query = ['FOR x IN companies'];
+    let query = ["FOR x IN companies"];
     const bindVars = {};
     if (!!request.query.search) {
-      query.push('FILTER CONTAINS(x.name, @search)');
+      query.push("FILTER CONTAINS(x.name, @search)");
       bindVars.search = request.query.search;
     }
     if (!!request.query.sort_by) {
       query.push(`SORT x.${request.query.sort_by} ASC`);
     }
     if (!!request.query.limit) {
-      query.push('LIMIT 0, @limit');
+      query.push("LIMIT 0, @limit");
       bindVars.limit = request.query.limit;
     }
-    query.push('RETURN x');
-    query = query.join(' ');
+    query.push("RETURN x");
+    query = query.join(" ");
 
     const cursor = await db.query({ query, bindVars });
     const documents = await cursor.all();
@@ -58,8 +58,8 @@ server.route({
 // show a company
 
 server.route({
-  method: 'GET',
-  path: '/companies/{key}',
+  method: "GET",
+  path: "/companies/{key}",
   options: {
     validate: {
       params: validateParams,
@@ -70,7 +70,7 @@ server.route({
   },
   handler: async (request, h) => {
     const { key } = request.params;
-    const company = await db.collection('companies').document(key);
+    const company = await db.collection("companies").document(key);
     return company;
   }
 });
@@ -78,8 +78,8 @@ server.route({
 // store a company
 
 server.route({
-  method: 'POST',
-  path: '/companies',
+  method: "POST",
+  path: "/companies",
   options: {
     validate: {
       payload: Joi.object({
@@ -96,14 +96,14 @@ server.route({
   },
   handler: async (request, h) => {
     const { name, since } = request.payload;
-    const found = await hasCollection('companies');
+    const found = await hasCollection("companies");
     if (!found) {
-      await db.createCollection('companies', {
+      await db.createCollection("companies", {
         type: CollectionType.DOCUMENT_COLLECTION
       });
     }
     const now = new Date().toISOString();
-    const meta = await db.collection('companies').save({
+    const meta = await db.collection("companies").save({
       name,
       since,
       created_at: now,
@@ -118,8 +118,8 @@ server.route({
 // update a company
 
 server.route({
-  method: 'PATCH',
-  path: '/companies/{key}',
+  method: "PATCH",
+  path: "/companies/{key}",
   options: {
     validate: {
       params: validateParams,
@@ -147,7 +147,7 @@ server.route({
     if (!!since) {
       data.since = since;
     }
-    const meta = await db.collection('companies').update(key, data, {
+    const meta = await db.collection("companies").update(key, data, {
       returnNew: true
     });
     return meta.new;
@@ -157,13 +157,13 @@ server.route({
 // delete a company
 
 server.route({
-  method: 'DELETE',
-  path: '/companies/{key}',
+  method: "DELETE",
+  path: "/companies/{key}",
   options: {
     validate: {
       params: validateParams,
       payload: Joi.object({
-        mode: Joi.string().valid('erase', 'trash', 'restore'),
+        mode: Joi.string().valid("erase", "trash", "restore"),
       }),
       options: {
         abortEarly: false
@@ -176,18 +176,18 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     const { mode } = request.payload;
-    if (mode === 'erase') {
-      await db.collection('companies').remove(key);
+    if (mode === "erase") {
+      await db.collection("companies").remove(key);
       return h.response().code(204);
-    } else if (mode === 'trash') {
-      const meta = await db.collection('companies').update(key, {
+    } else if (mode === "trash") {
+      const meta = await db.collection("companies").update(key, {
         deleted_at: new Date()
       }, {
         returnNew: true
       });
       return meta.new;
-    } else if (mode === 'restore') {
-      const meta = await db.collection('companies').update(key, {
+    } else if (mode === "restore") {
+      const meta = await db.collection("companies").update(key, {
         deleted_at: null
       }, {
         keepNull: false, // will not keep "deleted_at" field
@@ -201,8 +201,8 @@ server.route({
 // show the users that is employed by a company
 
 server.route({
-  method: 'GET',
-  path: '/companies/{key}/users',
+  method: "GET",
+  path: "/companies/{key}/users",
   options: {
     validate: {
       params: validateParams,

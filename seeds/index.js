@@ -1,9 +1,9 @@
-'use strict';
+"use strict";
 
-require('dotenv').config();
+require("dotenv").config();
 
-const runCompanySeeder = require('./CompanySeeder');
-const runUserSeeder = require('./UserSeeder');
+const runCompanySeeder = require("./CompanySeeder");
+const runUserSeeder = require("./UserSeeder");
 
 runCompanySeeder();
 runUserSeeder();

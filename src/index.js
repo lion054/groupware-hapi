@@ -1,20 +1,20 @@
-'use strict';
+"use strict";
 
-require('dotenv').config();
-const { server, init } = require('./server');
+require("dotenv").config();
+const { server, init } = require("./server");
 
-require('./controllers/CompanyController');
-require('./controllers/UserController');
+require("./controllers/CompanyController");
+require("./controllers/UserController");
 
 server.route({
-  method: 'GET',
-  path: '/',
+  method: "GET",
+  path: "/",
   handler: (request, h) => {
-    return 'Hello, world!';
+    return "Hello, world!";
   }
 });
 
-process.on('unhandledRejection', (e) => {
+process.on("unhandledRejection", (e) => {
   console.log(e);
   process.exit(1);
 });

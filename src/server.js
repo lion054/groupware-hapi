@@ -1,19 +1,19 @@
-const Hapi = require('@hapi/hapi');
-const { Database } = require('arangojs');
+const Hapi = require("@hapi/hapi");
+const { Database } = require("arangojs");
 
 const server = Hapi.server({
   host: process.env.HOST,
   port: process.env.PORT,
   routes: {
     cors: {
-      origin: [process.env.ORIGIN_ALLOWED] // an array of origins or 'ignore'
+      origin: [process.env.ORIGIN_ALLOWED] // an array of origins or "ignore"
     }
   }
 });
 
 // change api endpoint as following:
 // http://localhost:5050/api/v1/users
-server.realm.modifiers.route.prefix = '/api/v1';
+server.realm.modifiers.route.prefix = "/api/v1";
 
 const db = new Database({
   url: `http://${process.env.DB_HOST}:${process.env.DB_PORT}`,
@@ -26,7 +26,7 @@ const db = new Database({
 
 const init = async () => {
   await server.register({
-    plugin: require('@hapi/inert')
+    plugin: require("@hapi/inert")
   });
   await server.start();
   console.log(`Server running at: ${server.info.uri}`);

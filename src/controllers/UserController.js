@@ -1,14 +1,14 @@
-const Joi = require('@hapi/joi');
-const Boom = require('@hapi/boom');
-const fs = require('fs');
-const path = require('path');
-const md5 = require('md5');
-const { CollectionType } = require('arangojs');
-const { server, db } = require('../server');
-const { hasCollection, checkUnique, createNestedDirectory, deleteDirectory, acceptFile } = require('../helpers');
+const Joi = require("@hapi/joi");
+const Boom = require("@hapi/boom");
+const fs = require("fs");
+const path = require("path");
+const md5 = require("md5");
+const { CollectionType } = require("arangojs");
+const { server, db } = require("../server");
+const { hasCollection, checkUnique, createNestedDirectory, deleteDirectory, acceptFile } = require("../helpers");
 
 const validateParams = async (value, options) => {
-  const found = await db.collection('users').documentExists(value.key);
+  const found = await db.collection("users").documentExists(value.key);
   if (found) {
     return value;
   }
@@ -18,12 +18,12 @@ const validateParams = async (value, options) => {
 // find some users
 
 server.route({
-  method: 'GET',
-  path: '/users',
+  method: "GET",
+  path: "/users",
   options: {
     validate: {
       query: Joi.object({
-        sort_by: Joi.string().valid('name', 'email'),
+        sort_by: Joi.string().valid("name", "email"),
         limit: Joi.number().integer().min(5).max(100)
       }),
       options: {
@@ -35,22 +35,22 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    let query = ['FOR x IN users'];
+    let query = ["FOR x IN users"];
     const bindVars = {};
     if (!!request.query.search) {
-      query.push('FILTER CONTAINS(x.name, @search) || CONTAINS(x.email, @search)');
+      query.push("FILTER CONTAINS(x.name, @search) || CONTAINS(x.email, @search)");
       bindVars.search = request.query.search;
     }
     if (!!request.query.sort_by) {
       query.push(`SORT x.${request.query.sort_by} ASC`);
     }
     if (!!request.query.limit) {
-      query.push('LIMIT 0, @limit');
+      query.push("LIMIT 0, @limit");
       bindVars.limit = request.query.limit;
     }
     // exclude sensitive info from all records of result
-    query.push('RETURN UNSET(x, "password")');
-    query = query.join(' ');
+    query.push("RETURN UNSET(x, 'password')");
+    query = query.join(" ");
 
     const cursor = await db.query({ query, bindVars });
     const documents = await cursor.all();
@@ -61,8 +61,8 @@ server.route({
 // show a user
 
 server.route({
-  method: 'GET',
-  path: '/users/{key}',
+  method: "GET",
+  path: "/users/{key}",
   options: {
     validate: {
       params: validateParams,
@@ -74,7 +74,7 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     // exclude sensitive info from record of result
-    const { password, ...rest } = await db.collection('users').document(key);
+    const { password, ...rest } = await db.collection("users").document(key);
     return rest;
   }
 });
@@ -82,12 +82,12 @@ server.route({
 // store a user
 
 server.route({
-  method: 'POST',
-  path: '/users',
+  method: "POST",
+  path: "/users",
   options: {
     payload: {
       maxBytes: 5 * 1024 * 1024,
-      output: 'stream',
+      output: "stream",
       parse: true,
       multipart: true
     },
@@ -97,7 +97,7 @@ server.route({
         email: Joi.string().email().required(),
         password: Joi.string().min(6).required(),
         password_confirmation: Joi.any().equal(
-          Joi.ref('password')
+          Joi.ref("password")
         ).required(),
         avatar: Joi.any().required()
       }),
@@ -111,33 +111,33 @@ server.route({
   },
   handler: async (request, h) => {
     const { name, email, password, avatar } = request.payload; // don't save password_confirmation in record
-    const found = await hasCollection('users');
+    const found = await hasCollection("users");
     if (found) {
-      const unique = await checkUnique('users', 'email', email);
+      const unique = await checkUnique("users", "email", email);
       if (!unique) {
-        throw Boom.conflict('This email address was registered already');
+        throw Boom.conflict("This email address was registered already");
       }
     } else {
-      await db.createCollection('users', {
+      await db.createCollection("users", {
         type: CollectionType.DOCUMENT_COLLECTION
       });
     }
     const now = new Date().toISOString();
-    let meta = await db.collection('users').save({
+    let meta = await db.collection("users").save({
       name,
       email,
       password: md5(password),
       created_at: now,
       modified_at: now
     });
-    const dirPath = createNestedDirectory(['..', 'storage', 'users', meta._key]);
+    const dirPath = createNestedDirectory(["..", "storage", "users", meta._key]);
     const fileDetails = await acceptFile(avatar, {
       destDir: dirPath,
       fileFilter: (fileName) => {
         return fileName.match(/\.(jpg|jpeg|png|gif)$/);
       }
     });
-    meta = await db.collection('users').update(meta._key, {
+    meta = await db.collection("users").update(meta._key, {
       avatar: `users/${meta._key}/${fileDetails.fileName}`
     }, {
       returnNew: true
@@ -150,12 +150,12 @@ server.route({
 // update a user
 
 server.route({
-  method: 'PATCH',
-  path: '/users/{key}',
+  method: "PATCH",
+  path: "/users/{key}",
   options: {
     payload: {
       maxBytes: 5 * 1024 * 1024,
-      output: 'stream',
+      output: "stream",
       parse: true,
       multipart: true
     },
@@ -164,10 +164,10 @@ server.route({
       payload: Joi.object({
         name: Joi.string().trim(),
         email: Joi.string().email(),
-        password_confirmation: Joi.when('password', {
+        password_confirmation: Joi.when("password", {
           is: Joi.exist(),
           then: Joi.any().valid(
-            Joi.ref('password')
+            Joi.ref("password")
           ).required()
         }),
         password: Joi.string().min(6),
@@ -197,7 +197,7 @@ server.route({
       data.password = md5(password);
     }
     if (avatar) {
-      const newPath = createNestedDirectory(['..', 'storage', 'users', key]);
+      const newPath = createNestedDirectory(["..", "storage", "users", key]);
       const fileDetails = await acceptFile(avatar, {
         destDir: newPath,
         fileFilter: (fileName) => {
@@ -206,11 +206,11 @@ server.route({
       });
       data.avatar = `users/${key}/${fileDetails.fileName}`;
       // delete old image file from storage
-      const user = await db.collection('users').document(key);
-      const oldPath = path.join(__dirname, '../../storage/', user.avatar);
+      const user = await db.collection("users").document(key);
+      const oldPath = path.join(__dirname, "../../storage/", user.avatar);
       fs.rmSync(oldPath);
     }
-    const meta = await db.collection('users').update(key, data, {
+    const meta = await db.collection("users").update(key, data, {
       returnNew: true
     });
     delete meta.new.password; // exclude sensitive info from record of result
@@ -221,13 +221,13 @@ server.route({
 // delete a user
 
 server.route({
-  method: 'DELETE',
-  path: '/users/{key}',
+  method: "DELETE",
+  path: "/users/{key}",
   options: {
     validate: {
       params: validateParams,
       payload: Joi.object({
-        mode: Joi.string().valid('erase', 'trash', 'restore'),
+        mode: Joi.string().valid("erase", "trash", "restore"),
       }),
       options: {
         abortEarly: false
@@ -240,20 +240,20 @@ server.route({
   handler: async (request, h) => {
     const { key } = request.params;
     const { mode } = request.payload;
-    if (mode === 'erase') {
+    if (mode === "erase") {
       deleteDirectory(`../storage/users/${key}`);
-      await db.collection('users').remove(key);
+      await db.collection("users").remove(key);
       return h.response().code(204);
-    } else if (mode === 'trash') {
-      const meta = await db.collection('users').update(key, {
+    } else if (mode === "trash") {
+      const meta = await db.collection("users").update(key, {
         deleted_at: new Date()
       }, {
         returnNew: true
       });
       const { password, ...rest } = meta.new; // exclude sensitive info from record of result
       return rest;
-    } else if (mode === 'restore') {
-      const meta = await db.collection('users').update(key, {
+    } else if (mode === "restore") {
+      const meta = await db.collection("users").update(key, {
         deleted_at: null
       }, {
         keepNull: false, // will not keep "deleted_at" field
@@ -268,8 +268,8 @@ server.route({
 // show a company that user is employed
 
 server.route({
-  method: 'GET',
-  path: '/users/{key}/company',
+  method: "GET",
+  path: "/users/{key}/company",
   options: {
     validate: {
       params: validateParams,
@@ -290,8 +290,8 @@ server.route({
       `,
       bindVars: {
         startVertex: `users/${key}`,
-        graph: 'employment',
-        prefix: 'companies/'
+        graph: "employment",
+        prefix: "companies/"
       }
     });
     const documents = await cursor.all();
@@ -305,8 +305,8 @@ server.route({
 // show the collegues that user works together in company
 
 server.route({
-  method: 'GET',
-  path: '/users/{key}/collegues',
+  method: "GET",
+  path: "/users/{key}/collegues",
   options: {
     validate: {
       params: validateParams,
@@ -329,8 +329,8 @@ server.route({
       `,
       bindVars: {
         startVertex: `users/${key}`,
-        graph: 'employment',
-        prefix: 'users/',
+        graph: "employment",
+        prefix: "users/",
         key
       }
     });

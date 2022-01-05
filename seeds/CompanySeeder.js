@@ -1,5 +1,5 @@
-const { CollectionType, Database } = require('arangojs');
-const faker = require('faker');
+const { CollectionType, Database } = require("arangojs");
+const faker = require("faker");
 
 module.exports = async function () {
   // create db connection
@@ -13,14 +13,14 @@ module.exports = async function () {
   });
 
   // at the first, clean up old collection
-  let collection = db.collection('companies');
+  let collection = db.collection("companies");
   const found = await collection.exists();
   if (found) {
     await collection.drop();
   }
 
   // create new collection
-  collection = db.collection('companies');
+  collection = db.collection("companies");
   await collection.create({
     type: CollectionType.DOCUMENT_COLLECTION
   });

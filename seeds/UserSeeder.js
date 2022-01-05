@@ -1,12 +1,12 @@
-const { CollectionType, Database } = require('arangojs');
-const faker = require('faker');
-const md5 = require('md5');
-const { downloadImage } = require('./helpers');
-const { deleteDirectory } = require('../src/helpers');
+const { CollectionType, Database } = require("arangojs");
+const faker = require("faker");
+const md5 = require("md5");
+const { downloadImage } = require("./helpers");
+const { deleteDirectory } = require("../src/helpers");
 
 module.exports = async function () {
   // remove the existing user avatars from local disk
-  deleteDirectory('../storage/users');
+  deleteDirectory("../storage/users");
 
   // create db connection
   const db = new Database({
@@ -19,38 +19,38 @@ module.exports = async function () {
   });
 
   // at the first, clean up old collections and graph
-  let usersCollection = db.collection('users');
+  let usersCollection = db.collection("users");
   let found = await usersCollection.exists();
   if (found) {
     await usersCollection.drop();
   }
-  workAtCollection = db.collection('work_at');
+  workAtCollection = db.collection("work_at");
   found = await workAtCollection.exists();
   if (found) {
     await workAtCollection.drop();
   }
-  let graph = db.graph('employment');
+  let graph = db.graph("employment");
   found = await graph.exists();
   if (found) {
     await graph.drop();
   }
 
   // create new collections
-  usersCollection = db.collection('users');
+  usersCollection = db.collection("users");
   await usersCollection.create({
     type: CollectionType.DOCUMENT_COLLECTION
   });
-  workAtCollection = db.collection('work_at');
+  workAtCollection = db.collection("work_at");
   await workAtCollection.create({
     type: CollectionType.EDGE_COLLECTION
   });
 
   // create new graph
-  graph = db.graph('employment');
+  graph = db.graph("employment");
   const info = await graph.create([{
-    collection: 'work_at',
-    from: ['users'],
-    to: ['companies']
+    collection: "work_at",
+    from: ["users"],
+    to: ["companies"]
   }]);
 
   // create a few users about every company
@@ -69,12 +69,12 @@ module.exports = async function () {
       const meta = await usersCollection.save({
         name: faker.name.findName(),
         email: faker.internet.email(),
-        password: md5('123456'),
+        password: md5("123456"),
         created_at: now,
         modified_at: now
       });
       // create the avatar
-      const fileName = await downloadImage('users', meta._key);
+      const fileName = await downloadImage("users", meta._key);
       await usersCollection.update(meta._key, {
         avatar: `users/${meta._key}/${fileName}`,
         modified_at: new Date().toISOString()
