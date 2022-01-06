@@ -58,7 +58,7 @@ module.exports = async function () {
     FOR x IN companies
     RETURN x
   `);
-  await cursor.forEach(async (company) => {
+  for await (const company of cursor) {
     const count = faker.datatype.number({
       min: 3,
       max: 5
@@ -90,5 +90,5 @@ module.exports = async function () {
         modified_at: now
       });
     }
-  });
+  }
 }
