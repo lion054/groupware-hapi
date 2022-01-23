@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "dev": "npx nodemon src/index.js",
     "seed": "node seed/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "faker": "^5.5.3",
+    "nodemon": "^2.0.15",
     "request": "^2.88.2"
   }
 }
