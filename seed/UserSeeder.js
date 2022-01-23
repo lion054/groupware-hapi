@@ -24,7 +24,7 @@ module.exports = async function () {
   if (found) {
     await usersCollection.drop();
   }
-  workAtCollection = db.collection("work_at");
+  let workAtCollection = db.collection("work_at");
   found = await workAtCollection.exists();
   if (found) {
     await workAtCollection.drop();
