@@ -8,6 +8,9 @@ const server = Hapi.server({
     cors: {
       origin: [process.env.ORIGIN_ALLOWED] // an array of origins or "ignore"
     }
+  },
+  router: {
+    stripTrailingSlash: true
   }
 });
 
