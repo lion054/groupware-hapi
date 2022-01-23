@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "seed": "node seeds/index.js",
+    "seed": "node seed/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
