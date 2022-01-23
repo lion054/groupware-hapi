@@ -31,6 +31,18 @@ server.route({
       failAction: (request, h, err) => {
         throw err;
       }
+    },
+    response: {
+      schema: Joi.array().items(Joi.object({
+        _key: Joi.string().required(),
+        _id: Joi.string().required(),
+        _rev: Joi.string().required(),
+        name: Joi.string().required(),
+        since: Joi.date().required(),
+        created_at: Joi.date().required(),
+        updated_at: Joi.date().required(),
+        deleted_at: Joi.date()
+      }))
     }
   },
   handler: async (request, h) => {
@@ -68,6 +80,18 @@ server.route({
       failAction: (request, h, err) => {
         throw err;
       }
+    },
+    response: {
+      schema: Joi.object({
+        _key: Joi.string().required(),
+        _id: Joi.string().required(),
+        _rev: Joi.string().required(),
+        name: Joi.string().required(),
+        since: Joi.date().required(),
+        created_at: Joi.date().required(),
+        updated_at: Joi.date().required(),
+        deleted_at: Joi.date()
+      })
     }
   },
   handler: async (request, h) => {
@@ -94,6 +118,17 @@ server.route({
       failAction: (request, h, err) => {
         throw err;
       }
+    },
+    response: {
+      schema: Joi.object({
+        _key: Joi.string().required(),
+        _id: Joi.string().required(),
+        _rev: Joi.string().required(),
+        name: Joi.string().required(),
+        since: Joi.date().required(),
+        created_at: Joi.date().required(),
+        updated_at: Joi.date().required()
+      })
     }
   },
   handler: async (request, h) => {
@@ -135,6 +170,18 @@ server.route({
       failAction: (request, h, err) => {
         throw err;
       }
+    },
+    response: {
+      schema: Joi.object({
+        _key: Joi.string().required(),
+        _id: Joi.string().required(),
+        _rev: Joi.string().required(),
+        name: Joi.string().required(),
+        since: Joi.date().required(),
+        created_at: Joi.date().required(),
+        updated_at: Joi.date().required(),
+        deleted_at: Joi.date()
+      })
     }
   },
   handler: async (request, h) => {
@@ -173,6 +220,18 @@ server.route({
       failAction: (request, h, err) => {
         throw err;
       }
+    },
+    response: {
+      schema: Joi.object({
+        _key: Joi.string().required(),
+        _id: Joi.string().required(),
+        _rev: Joi.string().required(),
+        name: Joi.string().required(),
+        since: Joi.date().required(),
+        created_at: Joi.date().required(),
+        updated_at: Joi.date().required(),
+        deleted_at: Joi.date()
+      })
     }
   },
   handler: async (request, h) => {
@@ -211,6 +270,19 @@ server.route({
       failAction: (request, h, err) => {
         throw err;
       }
+    },
+    response: {
+      schema: Joi.array().items(Joi.object({
+        _key: Joi.string().required(),
+        _id: Joi.string().required(),
+        _rev: Joi.string().required(),
+        name: Joi.string().required(),
+        email: Joi.string().required(),
+        avatar: Joi.string().required(),
+        created_at: Joi.date().required(),
+        updated_at: Joi.date().required(),
+        deleted_at: Joi.date()
+      }))
     }
   },
   handler: async (request, h) => {
