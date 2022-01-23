@@ -5,6 +5,7 @@ const path = require("path");
 const md5 = require("md5");
 const { CollectionType } = require("arangojs");
 const { server, db } = require("../server");
+const { CompanySchema, UserSchema } = require("../schemas");
 const { hasCollection, checkUnique, createNestedDirectory, deleteDirectory, acceptFile } = require("../helpers");
 
 const validateParams = async (value, options) => {
@@ -35,17 +36,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.array().items(Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        email: Joi.string().required(),
-        avatar: Joi.string().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      }))
+      schema: Joi.array().items(UserSchema)
     }
   },
   handler: async (request, h) => {
@@ -86,17 +77,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        email: Joi.string().required(),
-        avatar: Joi.string().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      })
+      schema: UserSchema
     }
   },
   handler: async (request, h) => {
@@ -137,17 +118,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        email: Joi.string().required(),
-        avatar: Joi.string().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      })
+      schema: UserSchema
     }
   },
   handler: async (request, h) => {
@@ -221,17 +192,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        email: Joi.string().required(),
-        avatar: Joi.string().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      })
+      schema: UserSchema
     }
   },
   handler: async (request, h) => {
@@ -290,17 +251,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        email: Joi.string().required(),
-        avatar: Joi.string().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      })
+      schema: UserSchema
     }
   },
   handler: async (request, h) => {
@@ -344,16 +295,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        since: Joi.date().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      })
+      schema: CompanySchema
     }
   },
   handler: async (request, h) => {
@@ -393,17 +335,7 @@ server.route({
       }
     },
     response: {
-      schema: Joi.array().items(Joi.object({
-        _key: Joi.string().required(),
-        _id: Joi.string().required(),
-        _rev: Joi.string().required(),
-        name: Joi.string().required(),
-        email: Joi.string().required(),
-        avatar: Joi.string().required(),
-        created_at: Joi.date().required(),
-        updated_at: Joi.date().required(),
-        deleted_at: Joi.date()
-      }))
+      schema: Joi.array().items(UserSchema)
     }
   },
   handler: async (request, h) => {
