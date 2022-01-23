@@ -27,12 +27,12 @@ module.exports = async function () {
 
   // create a few companies in this collection
   for (let i = 0; i < 3; i++) {
-    const now = new Date().toISOString();
+    const now = new Date();
     await collection.save({
       name: faker.company.companyName(),
       since: faker.date.past(15),
       created_at: now,
-      modified_at: now
+      updated_at: now
     });
   }
 }

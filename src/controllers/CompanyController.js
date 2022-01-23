@@ -21,6 +21,7 @@ server.route({
   options: {
     validate: {
       query: Joi.object({
+        search: Joi.string().trim(),
         sort_by: Joi.string().valid("name", "since"),
         limit: Joi.number().integer().min(5).max(100)
       }),
@@ -34,17 +35,18 @@ server.route({
   },
   handler: async (request, h) => {
     let query = ["FOR x IN companies"];
+    const { search, sort_by, limit } = request.query;
     const bindVars = {};
-    if (!!request.query.search) {
+    if (!!search) {
       query.push("FILTER CONTAINS(x.name, @search)");
-      bindVars.search = request.query.search;
+      bindVars.search = search;
     }
-    if (!!request.query.sort_by) {
-      query.push(`SORT x.${request.query.sort_by} ASC`);
+    if (!!sort_by) {
+      query.push(`SORT x.${sort_by} ASC`);
     }
-    if (!!request.query.limit) {
+    if (!!limit) {
       query.push("LIMIT 0, @limit");
-      bindVars.limit = request.query.limit;
+      bindVars.limit = limit;
     }
     query.push("RETURN x");
     query = query.join(" ");
@@ -102,12 +104,12 @@ server.route({
         type: CollectionType.DOCUMENT_COLLECTION
       });
     }
-    const now = new Date().toISOString();
+    const now = new Date();
     const meta = await db.collection("companies").save({
       name,
       since,
       created_at: now,
-      modified_at: now
+      updated_at: now
     }, {
       returnNew: true
     });
@@ -139,7 +141,7 @@ server.route({
     const { key } = request.params;
     const { name, since } = request.payload;
     const data = {
-      modified_at: new Date().toISOString()
+      updated_at: new Date()
     };
     if (!!name) {
       data.name = name;

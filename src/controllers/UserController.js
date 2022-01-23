@@ -23,6 +23,7 @@ server.route({
   options: {
     validate: {
       query: Joi.object({
+        search: Joi.string().trim(),
         sort_by: Joi.string().valid("name", "email"),
         limit: Joi.number().integer().min(5).max(100)
       }),
@@ -36,17 +37,18 @@ server.route({
   },
   handler: async (request, h) => {
     let query = ["FOR x IN users"];
+    const { search, sort_by, limit } = request.query;
     const bindVars = {};
-    if (!!request.query.search) {
+    if (!!search) {
       query.push("FILTER CONTAINS(x.name, @search) || CONTAINS(x.email, @search)");
-      bindVars.search = request.query.search;
+      bindVars.search = search;
     }
-    if (!!request.query.sort_by) {
-      query.push(`SORT x.${request.query.sort_by} ASC`);
+    if (!!sort_by) {
+      query.push(`SORT x.${sort_by} ASC`);
     }
-    if (!!request.query.limit) {
+    if (!!limit) {
       query.push("LIMIT 0, @limit");
-      bindVars.limit = request.query.limit;
+      bindVars.limit = limit;
     }
     // exclude sensitive info from all records of result
     query.push("RETURN UNSET(x, 'password')");
@@ -122,13 +124,13 @@ server.route({
         type: CollectionType.DOCUMENT_COLLECTION
       });
     }
-    const now = new Date().toISOString();
+    const now = new Date();
     let meta = await db.collection("users").save({
       name,
       email,
       password: md5(password),
       created_at: now,
-      modified_at: now
+      updated_at: now
     });
     const dirPath = createNestedDirectory(["..", "storage", "users", meta._key]);
     const fileDetails = await acceptFile(avatar, {
@@ -185,7 +187,7 @@ server.route({
     const { key } = request.params;
     const { name, email, password, avatar } = request.payload; // don't save password_confirmation in record
     const data = {
-      modified_at: new Date().toISOString()
+      updated_at: new Date()
     };
     if (!!name) {
       data.name = name;
