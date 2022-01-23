@@ -34,7 +34,10 @@ server.route({
       }
     },
     response: {
-      schema: Joi.array().items(CompanySchema)
+      schema: Joi.array().items(CompanySchema),
+      failAction: async (request, h, err) => {
+        throw Boom.badData(err.message);
+      }
     }
   },
   handler: async (request, h) => {
@@ -74,7 +77,10 @@ server.route({
       }
     },
     response: {
-      schema: CompanySchema
+      schema: CompanySchema,
+      failAction: async (request, h, err) => {
+        throw Boom.badData(err.message);
+      }
     }
   },
   handler: async (request, h) => {
@@ -103,7 +109,10 @@ server.route({
       }
     },
     response: {
-      schema: CompanySchema
+      schema: CompanySchema,
+      failAction: async (request, h, err) => {
+        throw Boom.badData(err.message);
+      }
     }
   },
   handler: async (request, h) => {
@@ -147,7 +156,10 @@ server.route({
       }
     },
     response: {
-      schema: CompanySchema
+      schema: CompanySchema,
+      failAction: async (request, h, err) => {
+        throw Boom.badData(err.message);
+      }
     }
   },
   handler: async (request, h) => {
@@ -188,7 +200,10 @@ server.route({
       }
     },
     response: {
-      schema: CompanySchema
+      schema: CompanySchema,
+      failAction: async (request, h, err) => {
+        throw Boom.badData(err.message);
+      }
     }
   },
   handler: async (request, h) => {
@@ -229,7 +244,10 @@ server.route({
       }
     },
     response: {
-      schema: Joi.array().items(UserSchema)
+      schema: Joi.array().items(UserSchema),
+      failAction: async (request, h, err) => {
+        throw Boom.badData(err.message);
+      }
     }
   },
   handler: async (request, h) => {
