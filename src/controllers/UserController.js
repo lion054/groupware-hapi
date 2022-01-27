@@ -13,7 +13,7 @@ const validateParams = async (value, options) => {
   if (found) {
     return value;
   }
-  throw Boom.notFound(`This user does not exist`);
+  throw Boom.notFound("This user does not exist");
 }
 
 // find some users
@@ -336,7 +336,7 @@ server.route({
     if (documents.length > 0) {
       return documents[0];
     }
-    throw Boom.notFound(`This user is not employed by any company`);
+    throw Boom.notFound("This user is not employed by any company");
   }
 });
 

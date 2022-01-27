@@ -11,7 +11,7 @@ const validateParams = async (value, options) => {
   if (found) {
     return value;
   }
-  throw Boom.notFound(`This company does not exist`);
+  throw Boom.notFound("This company does not exist");
 }
 
 // find some companies
