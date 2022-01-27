@@ -20,7 +20,7 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}\\seeds\\index.js"
+      "program": "${workspaceFolder}\\seed\\index.js"
     }
   ]
 }
