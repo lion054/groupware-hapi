@@ -46,12 +46,7 @@ function acceptMultipleFiles(files, options) {
 }
 
 module.exports = {
-  hasCollection: async (name) => {
-    const collections = await db.listCollections();
-    const found = collections.find(x => x.name === name);
-    return !!found;
-  },
-  checkUnique: async (collectionName, field, value, excludingKey = false) => {
+  checkUnique: async (label, field, value, excludingKey = false) => {
     let query, bindVars;
     if (!excludingKey) {
       query = `

@@ -1,5 +1,5 @@
 const Hapi = require("@hapi/hapi");
-const { Database } = require("arangojs");
+const neo4j = require("neo4j-driver");
 
 const server = Hapi.server({
   host: process.env.HOST,
@@ -18,14 +18,10 @@ const server = Hapi.server({
 // http://localhost:5050/api/v1/users
 server.realm.modifiers.route.prefix = "/api/v1";
 
-const db = new Database({
-  url: `http://${process.env.DB_HOST}:${process.env.DB_PORT}`,
-  databaseName: process.env.DB_DATABASE,
-  auth: {
-    username: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD
-  }
-});
+const url = `neo4j://${process.env.DB_HOST}`;
+const { DB_USERNAME: username, DB_PASSWORD: password } = process.env;
+const driver = neo4j.driver(url, neo4j.auth.basic(username, password));
+const db = driver.session();
 
 const init = async () => {
   await server.register({

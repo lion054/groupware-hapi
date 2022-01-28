@@ -1,38 +1,40 @@
-const { CollectionType, Database } = require("arangojs");
+const neo4j = require("neo4j-driver");
 const faker = require("faker");
 
 module.exports = async function () {
   // create db connection
-  const db = new Database({
-    url: `http://${process.env.DB_HOST}:${process.env.DB_PORT}`,
-    databaseName: process.env.DB_DATABASE,
-    auth: {
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD
+  const url = `neo4j://${process.env.DB_HOST}`;
+  const { DB_USERNAME: username, DB_PASSWORD: password } = process.env;
+  const driver = neo4j.driver(url, neo4j.auth.basic(username, password));
+  const session = driver.session();
+
+  try {
+    // clean up old nodes
+    await session.run("MATCH (c:Company) DETACH DELETE c");
+
+    // create a few nodes
+    for (let i = 0; i < 3; i++) {
+      const now = new Date();
+      now.setMilliseconds(0);
+      const nanoseconds = process.hrtime()[1];
+      await session.run(`
+        CREATE (c:Company{
+          uuid: apoc.create.uuid(),
+          name: $name,
+          since: $since,
+          createdAt: $createdAt,
+          updatedAt: $updatedAt
+        })
+      `, {
+        name: faker.company.companyName(),
+        since: neo4j.types.Date.fromStandardDate(faker.date.past(15)),
+        createdAt: neo4j.types.DateTime.fromStandardDate(now, nanoseconds),
+        updatedAt: neo4j.types.DateTime.fromStandardDate(now, nanoseconds)
+      });
     }
-  });
-
-  // at the first, clean up old collection
-  let collection = db.collection("companies");
-  const found = await collection.exists();
-  if (found) {
-    await collection.drop();
+  } finally {
+    await session.close();
   }
 
-  // create new collection
-  collection = db.collection("companies");
-  await collection.create({
-    type: CollectionType.DOCUMENT_COLLECTION
-  });
-
-  // create a few companies in this collection
-  for (let i = 0; i < 3; i++) {
-    const now = new Date();
-    await collection.save({
-      name: faker.company.companyName(),
-      since: faker.date.past(15),
-      created_at: now,
-      updated_at: now
-    });
-  }
+  await driver.close();
 }
