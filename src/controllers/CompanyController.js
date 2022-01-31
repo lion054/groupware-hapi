@@ -65,8 +65,8 @@ server.route({
 
     const { records } = await db.run(query.join(" "), bindVars);
     return records.map(record => {
-      const json = parseRecord(record);
-      return json["c"];
+      const { c } = parseRecord(record);
+      return c;
     });
   }
 });
@@ -98,8 +98,8 @@ server.route({
     `, {
       id: neo4j.int(request.params.id)
     });
-    const json = parseRecord(records[0]);
-    return json["c"];
+    const { c } = parseRecord(records[0]);
+    return c;
   }
 });
 
@@ -131,7 +131,7 @@ server.route({
   handler: async (request, h) => {
     const { name, since } = request.payload;
     const { records } = await db.run(`
-      CREATE (c:Company{
+      CREATE (c:Company {
         name: $name,
         since: date($since),
         createdAt: datetime(),
@@ -142,8 +142,8 @@ server.route({
       name,
       since: moment.utc(since).local(true).format("YYYY-MM-DD") // input may be in various format
     });
-    const json = parseRecord(records[0]);
-    return json["c"];
+    const { c } = parseRecord(records[0]);
+    return c;
   }
 });
 
@@ -193,8 +193,8 @@ server.route({
       SET ${terms.join(", ")}
       RETURN c
     `, bindVars);
-    const json = parseRecord(records[0]);
-    return json["c"];
+    const { c } = parseRecord(records[0]);
+    return c;
   }
 });
 
@@ -247,8 +247,8 @@ server.route({
       `, {
         id: neo4j.int(request.params.id)
       });
-      const json = parseRecord(records[0]);
-      return json["c"];
+      const { c } = parseRecord(records[0]);
+      return c;
     } else if (mode === "restore") {
       const { records } = await db.run(`
         MATCH (c:Company)
@@ -258,8 +258,8 @@ server.route({
       `, {
         id: neo4j.int(request.params.id)
       });
-      const json = parseRecord(records[0]);
-      return json["c"];
+      const { c } = parseRecord(records[0]);
+      return c;
     }
   }
 });

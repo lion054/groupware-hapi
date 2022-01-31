@@ -5,6 +5,14 @@ const { downloadImage } = require("./helpers");
 const { deleteDirectory, parseRecord } = require("../src/helpers");
 const { db } = require("../src/server");
 
+async function getCompanyIds() {
+  const { records } = await db.run("MATCH (c:Company) RETURN c");
+  return records.map(record => {
+    const { c } = parseRecord(record);
+    return c.id;
+  });
+}
+
 module.exports = async function () {
   // remove the existing user avatars from local disk
   deleteDirectory("../storage/users");
@@ -12,19 +20,20 @@ module.exports = async function () {
   // clean up old nodes and relationships
   await db.run("MATCH (u:User) DETACH DELETE u");
 
+  // get company list
+  const companyIds = await getCompanyIds();
+
   // create a few users about every company
-  const companyResult = await db.run("MATCH (c:Company) RETURN c");
-  for (let i = 0; i < companyResult.records.length; i++) {
-    const { c } = parseRecord(companyResult.records[i]);
+  for (let i = 0; i < companyIds.length; i++) {
     // create user
     const count = faker.datatype.number({
       min: 3,
       max: 5
     });
-    for (let i = 0; i < count; i++) {
+    for (let j = 0; j < count; j++) {
       // create user
       const { records } = await db.run(`
-        CREATE (u:User{
+        CREATE (u:User {
           name: $name,
           email: $email,
           password: $password,
@@ -59,7 +68,7 @@ module.exports = async function () {
         CREATE (u)-[r:WORK_AT]->(c)
       `, {
         userId: neo4j.int(u.id),
-        companyId: neo4j.int(c.id)
+        companyId: neo4j.int(companyIds[i])
       });
     }
   }

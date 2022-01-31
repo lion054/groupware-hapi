@@ -67,8 +67,8 @@ server.route({
 
     const { records } = await db.run(query.join(" "), bindVars);
     return records.map(record => {
-      const json = parseRecord(record, "password"); // exclude sensitive info from all records of result
-      return json["u"];
+      const { u } = parseRecord(record, "password"); // exclude sensitive info from all records of result
+      return u;
     });
   }
 });
@@ -100,8 +100,8 @@ server.route({
     `, {
       id: neo4j.int(request.params.id)
     });
-    const json = parseRecord(records[0], "password"); // exclude sensitive info from record of result
-    return json["u"];
+    const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
+    return u;
   }
 });
 

@@ -9,7 +9,7 @@ module.exports = async function () {
   // create a few nodes
   for (let i = 0; i < 3; i++) {
     await db.run(`
-      CREATE (c:Company{
+      CREATE (c:Company {
         name: $name,
         since: date($since),
         createdAt: datetime(),
