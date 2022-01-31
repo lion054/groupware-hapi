@@ -1,4 +1,3 @@
-const neo4j = require("neo4j-driver");
 const moment = require("moment");
 const faker = require("faker");
 const { db } = require("../src/server");

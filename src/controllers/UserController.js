@@ -4,7 +4,6 @@ const fs = require("fs");
 const path = require("path");
 const md5 = require("md5");
 const neo4j = require("neo4j-driver");
-const moment = require("moment");
 const { server, db } = require("../server");
 const { CompanySchema, UserSchema } = require("../schemas");
 const { checkUnique, createNestedDirectory, deleteDirectory, acceptFile, parseRecord } = require("../helpers");
