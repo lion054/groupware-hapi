@@ -1,3 +1,5 @@
+const neo4j = require("neo4j-driver");
+const moment = require("moment");
 const path = require("path");
 const fs = require("fs");
 const uuidv4 = require("uuid").v4;
@@ -46,28 +48,51 @@ function acceptMultipleFiles(files, options) {
 }
 
 module.exports = {
-  checkUnique: async (label, field, value, excludingKey = false) => {
-    let query, bindVars;
-    if (!excludingKey) {
-      query = `
-        FOR x IN ${collectionName}
-        FILTER x.${field} == @value
-        COLLECT WITH COUNT INTO length
-        RETURN length
-      `;
-      bindVars = { value };
-    } else {
-      query = `
-        FOR x IN ${collectionName}
-        FILTER x.${field} == @value && x._key <> @excludingKey
-        COLLECT WITH COUNT INTO length
-        RETURN length
-      `;
-      bindVars = { value, excludingKey };
+  parseRecord: (record, excludingField) => {
+    const result = {};
+    for (let [key, node] of record.entries()) {
+      result[key] = {
+        id: node.identity.toString()
+      };
+      for (let field in node.properties) {
+        if (!!excludingField) {
+          if (field === excludingField) {
+            continue;
+          }
+        }
+        const value = node.properties[field];
+        if (neo4j.isDate(value)) {
+          result[key][field] = value.toString();
+        } else if (neo4j.isTime(value) || neo4j.isDateTime(value)) {
+          result[key][field] = moment(value.toString()).format(); // convert nanoseconds to microseconds
+        } else {
+          result[key][field] = value;
+        }
+      }
     }
-    const cursor = await db.query({ query, bindVars });
-    const result = await cursor.all();
-    return result[0] === 0;
+    return result;
+  },
+  checkUnique: async (label, field, value, excludingId = false) => {
+    if (!excludingId) {
+      const { records } = await db.run(`
+        MATCH (n:${label})
+        WHERE n.${field} = $value
+        RETURN count(*)
+      `, { value });
+      const count = records[0].get(0);
+      return neo4j.integer.toNumber(count) === 0;
+    } else {
+      const { records } = await db.run(`
+        MATCH (n:${label})
+        WHERE n.${field} = $value AND id(n) <> $excludingId
+        RETURN count(*)
+      `, {
+        value,
+        excludingId: neo4j.int(excludingId)
+      });
+      const count = records[0].get(0);
+      return neo4j.integer.toNumber(count) === 0;
+    }
   },
   createNestedDirectory: (dirs) => {
     let dirPath = __dirname;

@@ -1,40 +1,24 @@
 const neo4j = require("neo4j-driver");
+const moment = require("moment");
 const faker = require("faker");
+const { db } = require("../src/server");
 
 module.exports = async function () {
-  // create db connection
-  const url = `neo4j://${process.env.DB_HOST}`;
-  const { DB_USERNAME: username, DB_PASSWORD: password } = process.env;
-  const driver = neo4j.driver(url, neo4j.auth.basic(username, password));
-  const session = driver.session();
+  // clean up old nodes
+  await db.run("MATCH (c:Company) DETACH DELETE c");
 
-  try {
-    // clean up old nodes
-    await session.run("MATCH (c:Company) DETACH DELETE c");
-
-    // create a few nodes
-    for (let i = 0; i < 3; i++) {
-      const now = new Date();
-      now.setMilliseconds(0);
-      const nanoseconds = process.hrtime()[1];
-      await session.run(`
-        CREATE (c:Company{
-          uuid: apoc.create.uuid(),
-          name: $name,
-          since: $since,
-          createdAt: $createdAt,
-          updatedAt: $updatedAt
-        })
-      `, {
-        name: faker.company.companyName(),
-        since: neo4j.types.Date.fromStandardDate(faker.date.past(15)),
-        createdAt: neo4j.types.DateTime.fromStandardDate(now, nanoseconds),
-        updatedAt: neo4j.types.DateTime.fromStandardDate(now, nanoseconds)
-      });
-    }
-  } finally {
-    await session.close();
+  // create a few nodes
+  for (let i = 0; i < 3; i++) {
+    await db.run(`
+      CREATE (c:Company{
+        name: $name,
+        since: date($since),
+        createdAt: datetime(),
+        updatedAt: datetime()
+      })
+    `, {
+      name: faker.company.companyName(),
+      since: moment.utc(faker.date.past(15)).local(true).format("YYYY-MM-DD")
+    });
   }
-
-  await driver.close();
 }

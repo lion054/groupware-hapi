@@ -33,6 +33,7 @@ const init = async () => {
 
 module.exports = {
   server,
+  driver,
   db,
   init
 };

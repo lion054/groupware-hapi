@@ -3,14 +3,21 @@ const Boom = require("@hapi/boom");
 const fs = require("fs");
 const path = require("path");
 const md5 = require("md5");
-const { CollectionType } = require("arangojs");
+const neo4j = require("neo4j-driver");
+const moment = require("moment");
 const { server, db } = require("../server");
 const { CompanySchema, UserSchema } = require("../schemas");
-const { hasCollection, checkUnique, createNestedDirectory, deleteDirectory, acceptFile } = require("../helpers");
+const { checkUnique, createNestedDirectory, deleteDirectory, acceptFile, parseRecord } = require("../helpers");
 
 const validateParams = async (value, options) => {
-  const found = await db.collection("users").documentExists(value.key);
-  if (found) {
+  const { records } = await db.run(`
+    MATCH (u:User)
+    WHERE id(u) = $id
+    RETURN COUNT(*)
+  `, {
+    id: neo4j.int(value.id)
+  });
+  if (neo4j.integer.toNumber(records[0].get(0)) === 1) {
     return value;
   }
   throw Boom.notFound("This user does not exist");
@@ -43,27 +50,27 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    let query = ["FOR x IN users"];
+    let query = ["MATCH (u:User)"];
     const { search, sort_by, limit } = request.query;
     const bindVars = {};
     if (!!search) {
-      query.push("FILTER CONTAINS(x.name, @search) || CONTAINS(x.email, @search)");
+      query.push("WHERE u.name CONTAINS $search OR u.email CONTAINS $search)");
       bindVars.search = search;
     }
     if (!!sort_by) {
-      query.push(`SORT x.${sort_by} ASC`);
+      query.push(`ORDER BY u.${sort_by}`);
     }
     if (!!limit) {
-      query.push("LIMIT 0, @limit");
+      query.push("SKIP 0 LIMIT @limit");
       bindVars.limit = limit;
     }
-    // exclude sensitive info from all records of result
-    query.push("RETURN UNSET(x, 'password')");
-    query = query.join(" ");
+    query.push("RETURN u");
 
-    const cursor = await db.query({ query, bindVars });
-    const documents = await cursor.all();
-    return documents;
+    const { records } = await db.run(query.join(" "), bindVars);
+    return records.map(record => {
+      const json = parseRecord(record, "password"); // exclude sensitive info from all records of result
+      return json["u"];
+    });
   }
 });
 
@@ -71,7 +78,7 @@ server.route({
 
 server.route({
   method: "GET",
-  path: "/users/{key}",
+  path: "/users/{id}",
   options: {
     validate: {
       params: validateParams,
@@ -87,10 +94,15 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
-    // exclude sensitive info from record of result
-    const { password, ...rest } = await db.collection("users").document(key);
-    return rest;
+    const { records } = await db.run(`
+      MATCH (u:User)
+      WHERE id(u) = $id
+      RETURN u
+    `, {
+      id: neo4j.int(request.params.id)
+    });
+    const json = parseRecord(records[0], "password"); // exclude sensitive info from record of result
+    return json["u"];
   }
 });
 
@@ -132,39 +144,43 @@ server.route({
   },
   handler: async (request, h) => {
     const { name, email, password, avatar } = request.payload; // don't save password_confirmation in record
-    const found = await hasCollection("users");
-    if (found) {
-      const unique = await checkUnique("users", "email", email);
-      if (!unique) {
-        throw Boom.conflict("This email address was registered already");
-      }
-    } else {
-      await db.createCollection("users", {
-        type: CollectionType.DOCUMENT_COLLECTION
-      });
+    const unique = await checkUnique("User", "email", email);
+    if (!unique) {
+      throw Boom.conflict("This email address was registered already");
     }
-    const now = new Date();
-    let meta = await db.collection("users").save({
+    let res = await db.run(`
+      CREATE (u:User{
+        name: $name,
+        email: $email,
+        password: $password,
+        createdAt: datetime(),
+        updatedAt: datetime()
+      })
+      RETURN u
+    `, {
       name,
       email,
-      password: md5(password),
-      created_at: now,
-      updated_at: now
+      password: md5(password)
     });
-    const dirPath = createNestedDirectory(["..", "storage", "users", meta._key]);
+    let json = parseRecord(res.records[0], "password"); // exclude sensitive info from record of result
+    const dirPath = createNestedDirectory(["..", "storage", "users", json["u"].id]);
     const fileDetails = await acceptFile(avatar, {
       destDir: dirPath,
       fileFilter: (fileName) => {
         return fileName.match(/\.(jpg|jpeg|png|gif)$/);
       }
     });
-    meta = await db.collection("users").update(meta._key, {
-      avatar: `users/${meta._key}/${fileDetails.fileName}`
-    }, {
-      returnNew: true
+    res = await db.run(`
+      MATCH (u:User)
+      WHERE id(u) = $id
+      SET u.avatar = $avatar
+      RETURN u
+    `, {
+      id: neo4j.int(json["u"].id),
+      avatar: `users/${json["u"].id}/${fileDetails.fileName}`
     });
-    delete meta.new.password; // exclude sensitive info from record of result
-    return meta.new;
+    json = parseRecord(res.records[0], "password"); // exclude sensitive info from record of result
+    return json["u"];
   }
 });
 
@@ -172,7 +188,7 @@ server.route({
 
 server.route({
   method: "PATCH",
-  path: "/users/{key}",
+  path: "/users/{id}",
   options: {
     payload: {
       maxBytes: 5 * 1024 * 1024,
@@ -192,7 +208,7 @@ server.route({
         }),
         password: Joi.string().min(6),
         avatar: Joi.any()
-      }),
+      }).required().min(1),
       options: {
         abortEarly: false
       },
@@ -208,39 +224,58 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
+    const { id } = request.params;
     const { name, email, password, avatar } = request.payload; // don't save password_confirmation in record
-    const data = {
-      updated_at: new Date()
+    const terms = ["u.updatedAt = datetime()"];
+    const bindVars = {
+      id: neo4j.int(id)
     };
     if (!!name) {
-      data.name = name;
+      terms.push("u.name = $name");
+      bindVars.name = name;
     }
     if (!!email) {
-      data.email = email;
+      const unique = await checkUnique("User", "email", email, id);
+      if (!unique) {
+        throw Boom.conflict("This email address was registered already");
+      }
+      terms.push("u.email = $email");
+      bindVars.email = email;
     }
     if (!!password) {
-      data.password = md5(password);
+      terms.push("u.password = $password");
+      bindVars.password = md5(password);
     }
     if (avatar) {
-      const newPath = createNestedDirectory(["..", "storage", "users", key]);
+      const newPath = createNestedDirectory(["..", "storage", "users", id]);
       const fileDetails = await acceptFile(avatar, {
         destDir: newPath,
         fileFilter: (fileName) => {
           return fileName.match(/\.(jpg|jpeg|png|gif)$/);
         }
       });
-      data.avatar = `users/${key}/${fileDetails.fileName}`;
+      terms.push("u.avatar = $avatar");
+      bindVars.avatar = `users/${id}/${fileDetails.fileName}`;
       // delete old image file from storage
-      const user = await db.collection("users").document(key);
-      const oldPath = path.join(__dirname, "../../storage/", user.avatar);
+      const { records } = await db.run(`
+        MATCH (u:User)
+        WHERE id(u) = $id
+        RETURN u
+      `, {
+        id: neo4j.int(id)
+      });
+      const { u } = parseRecord(records[0], "password");
+      const oldPath = path.join(__dirname, "../../storage/", u.avatar);
       fs.rmSync(oldPath);
     }
-    const meta = await db.collection("users").update(key, data, {
-      returnNew: true
-    });
-    delete meta.new.password; // exclude sensitive info from record of result
-    return meta.new;
+    const { records } = await db.run(`
+      MATCH (u:User)
+      WHERE id(u) = $id
+      SET ${terms.join(", ")}
+      RETURN u
+    `, bindVars);
+    const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
+    return u;
   }
 });
 
@@ -248,7 +283,7 @@ server.route({
 
 server.route({
   method: "DELETE",
-  path: "/users/{key}",
+  path: "/users/{id}",
   options: {
     validate: {
       params: validateParams,
@@ -265,34 +300,49 @@ server.route({
     response: {
       schema: UserSchema,
       failAction: async (request, h, err) => {
-        throw Boom.badData(err.message);
+        if (request.response.statusCode === 204) {
+          return h.response().code(204);
+        } else {
+          throw Boom.badData(err.message);
+        }
       }
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
+    const { id } = request.params;
     const { mode } = request.payload;
     if (mode === "erase") {
-      deleteDirectory(`../storage/users/${key}`);
-      await db.collection("users").remove(key);
+      deleteDirectory(`../storage/users/${id}`);
+      await db.run(`
+        MATCH (u:User)
+        WHERE id(u) = $id
+        DETACH DELETE u
+      `, {
+        id: neo4j.int(id)
+      });
       return h.response().code(204);
     } else if (mode === "trash") {
-      const meta = await db.collection("users").update(key, {
-        deleted_at: new Date()
-      }, {
-        returnNew: true
+      const { records } = await db.run(`
+        MATCH (u:User)
+        WHERE id(u) = $id
+        SET u.deletedAt = datetime()
+        RETURN u
+      `, {
+        id: neo4j.int(id)
       });
-      const { password, ...rest } = meta.new; // exclude sensitive info from record of result
-      return rest;
+      const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
+      return u;
     } else if (mode === "restore") {
-      const meta = await db.collection("users").update(key, {
-        deleted_at: null
-      }, {
-        keepNull: false, // will not keep "deleted_at" field
-        returnNew: true
+      const { records } = await db.run(`
+        MATCH (u:User)
+        WHERE id(u) = $id
+        REMOVE u.deletedAt
+        RETURN u
+      `, {
+        id: neo4j.int(id)
       });
-      const { password, ...rest } = meta.new; // exclude sensitive info from record of result
-      return rest;
+      const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
+      return u;
     }
   }
 });
@@ -301,7 +351,7 @@ server.route({
 
 server.route({
   method: "GET",
-  path: "/users/{key}/company",
+  path: "/users/{id}/company",
   options: {
     validate: {
       params: validateParams,
@@ -317,26 +367,19 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
-    const cursor = await db.query({
-      query: `
-        FOR vertex, edge, path IN 1..1
-        OUTBOUND @startVertex
-        GRAPH @graph
-        FILTER STARTS_WITH(vertex._id, @prefix)
-        RETURN vertex
-      `,
-      bindVars: {
-        startVertex: `users/${key}`,
-        graph: "employment",
-        prefix: "companies/"
-      }
+    const { records } = await db.run(`
+      MATCH (u:User)-[r:WORK_AT]->(c:Company)
+      WHERE id(u) = $id
+      RETURN c
+    `, {
+      id: neo4j.int(request.params.id)
     });
-    const documents = await cursor.all();
-    if (documents.length > 0) {
-      return documents[0];
+    if (records.length === 0) {
+      throw Boom.notFound("This user is not employed by any company");
+    } else {
+      const { c } = parseRecord(records[0]);
+      return c;
     }
-    throw Boom.notFound("This user is not employed by any company");
   }
 });
 
@@ -344,7 +387,7 @@ server.route({
 
 server.route({
   method: "GET",
-  path: "/users/{key}/collegues",
+  path: "/users/{id}/collegues",
   options: {
     validate: {
       params: validateParams,
@@ -360,25 +403,16 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
-    // use "ANY" direction, because startVertex->company is opposite of company->colledge in direction
-    // exclude sensitive info from record of result
-    const cursor = await db.query({
-      query: `
-        FOR vertex, edge, path IN 2..2
-        ANY @startVertex
-        GRAPH @graph
-        FILTER STARTS_WITH(vertex._id, @prefix) && vertex._key != @key
-        RETURN UNSET(vertex, "password")
-      `,
-      bindVars: {
-        startVertex: `users/${key}`,
-        graph: "employment",
-        prefix: "users/",
-        key
-      }
+    const { records } = await db.run(`
+      MATCH (u:User)-[:WORK_AT]->(c:Company)<-[:WORK_AT]-(n:User)
+      WHERE id(u) = $id
+      RETURN n
+    `, {
+      id: neo4j.int(request.params.id)
     });
-    const documents = await cursor.all();
-    return documents;
+    return records.map(record => {
+      const { n } = parseRecord(record, "password"); // exclude sensitive info from all records of result
+      return n;
+    });
   }
 });

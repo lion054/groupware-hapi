@@ -1,14 +1,20 @@
 const Joi = require("@hapi/joi");
 const Boom = require("@hapi/boom");
-const { CollectionType } = require("arangojs");
+const neo4j = require("neo4j-driver");
+const moment = require("moment");
 const { server, db } = require("../server");
 const { CompanySchema, UserSchema } = require("../schemas");
-const { hasCollection } = require("../helpers");
+const { parseRecord } = require("../helpers");
 
 const validateParams = async (value, options) => {
-  const companies = db.collection("companies");
-  const found = await companies.documentExists(value.key);
-  if (found) {
+  const { records } = await db.run(`
+    MATCH (c:Company)
+    WHERE id(c) = $id
+    RETURN COUNT(*)
+  `, {
+    id: neo4j.int(value.id)
+  });
+  if (neo4j.integer.toNumber(records[0].get(0)) === 1) {
     return value;
   }
   throw Boom.notFound("This company does not exist");
@@ -41,26 +47,27 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    let query = ["FOR x IN companies"];
+    let query = ["MATCH (c:Company)"];
     const { search, sort_by, limit } = request.query;
     const bindVars = {};
     if (!!search) {
-      query.push("FILTER CONTAINS(x.name, @search)");
+      query.push("WHERE c.name CONTAINS $search");
       bindVars.search = search;
     }
     if (!!sort_by) {
-      query.push(`SORT x.${sort_by} ASC`);
+      query.push(`ORDER BY c.${sort_by}`);
     }
     if (!!limit) {
-      query.push("LIMIT 0, @limit");
+      query.push("SKIP 0 LIMIT $limit");
       bindVars.limit = limit;
     }
-    query.push("RETURN x");
-    query = query.join(" ");
+    query.push("RETURN c");
 
-    const cursor = await db.query({ query, bindVars });
-    const documents = await cursor.all();
-    return documents;
+    const { records } = await db.run(query.join(" "), bindVars);
+    return records.map(record => {
+      const json = parseRecord(record);
+      return json["c"];
+    });
   }
 });
 
@@ -68,7 +75,7 @@ server.route({
 
 server.route({
   method: "GET",
-  path: "/companies/{key}",
+  path: "/companies/{id}",
   options: {
     validate: {
       params: validateParams,
@@ -84,9 +91,15 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
-    const company = await db.collection("companies").document(key);
-    return company;
+    const { records } = await db.run(`
+      MATCH (c:Company)
+      WHERE id(c) = $id
+      RETURN c
+    `, {
+      id: neo4j.int(request.params.id)
+    });
+    const json = parseRecord(records[0]);
+    return json["c"];
   }
 });
 
@@ -117,22 +130,20 @@ server.route({
   },
   handler: async (request, h) => {
     const { name, since } = request.payload;
-    const found = await hasCollection("companies");
-    if (!found) {
-      await db.createCollection("companies", {
-        type: CollectionType.DOCUMENT_COLLECTION
-      });
-    }
-    const now = new Date();
-    const meta = await db.collection("companies").save({
+    const { records } = await db.run(`
+      CREATE (c:Company{
+        name: $name,
+        since: date($since),
+        createdAt: datetime(),
+        updatedAt: datetime()
+      })
+      RETURN c
+    `, {
       name,
-      since,
-      created_at: now,
-      updated_at: now
-    }, {
-      returnNew: true
+      since: moment.utc(since).local(true).format("YYYY-MM-DD") // input may be in various format
     });
-    return meta.new;
+    const json = parseRecord(records[0]);
+    return json["c"];
   }
 });
 
@@ -140,14 +151,14 @@ server.route({
 
 server.route({
   method: "PATCH",
-  path: "/companies/{key}",
+  path: "/companies/{id}",
   options: {
     validate: {
       params: validateParams,
       payload: Joi.object({
         name: Joi.string().trim(),
         since: Joi.date()
-      }),
+      }).required().min(1),
       options: {
         abortEarly: false
       },
@@ -163,21 +174,27 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
     const { name, since } = request.payload;
-    const data = {
-      updated_at: new Date()
+    const terms = ["c.updatedAt = datetime()"];
+    const bindVars = {
+      id: neo4j.int(request.params.id)
     };
     if (!!name) {
-      data.name = name;
+      terms.push("c.name = $name");
+      bindVars.name = name;
     }
     if (!!since) {
-      data.since = since;
+      terms.push("c.since = date($since)");
+      bindVars.since = moment.utc(since).local(true).format("YYYY-MM-DD");
     }
-    const meta = await db.collection("companies").update(key, data, {
-      returnNew: true
-    });
-    return meta.new;
+    const { records } = await db.run(`
+      MATCH (c:Company)
+      WHERE id(c) = $id
+      SET ${terms.join(", ")}
+      RETURN c
+    `, bindVars);
+    const json = parseRecord(records[0]);
+    return json["c"];
   }
 });
 
@@ -185,7 +202,7 @@ server.route({
 
 server.route({
   method: "DELETE",
-  path: "/companies/{key}",
+  path: "/companies/{id}",
   options: {
     validate: {
       params: validateParams,
@@ -202,31 +219,47 @@ server.route({
     response: {
       schema: CompanySchema,
       failAction: async (request, h, err) => {
-        throw Boom.badData(err.message);
+        if (request.response.statusCode === 204) {
+          return h.response().code(204);
+        } else {
+          throw Boom.badData(err.message);
+        }
       }
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
     const { mode } = request.payload;
     if (mode === "erase") {
-      await db.collection("companies").remove(key);
+      await db.run(`
+        MATCH (c:Company)
+        WHERE id(c) = $id
+        DETACH DELETE c
+      `, {
+        id: neo4j.int(request.params.id)
+      });
       return h.response().code(204);
     } else if (mode === "trash") {
-      const meta = await db.collection("companies").update(key, {
-        deleted_at: new Date()
-      }, {
-        returnNew: true
+      const { records } = await db.run(`
+        MATCH (c:Company)
+        WHERE id(c) = $id
+        SET c.deletedAt = datetime()
+        RETURN c
+      `, {
+        id: neo4j.int(request.params.id)
       });
-      return meta.new;
+      const json = parseRecord(records[0]);
+      return json["c"];
     } else if (mode === "restore") {
-      const meta = await db.collection("companies").update(key, {
-        deleted_at: null
-      }, {
-        keepNull: false, // will not keep "deleted_at" field
-        returnNew: true
+      const { records } = await db.run(`
+        MATCH (c:Company)
+        WHERE id(c) = $id
+        REMOVE c.deletedAt
+        RETURN c
+      `, {
+        id: neo4j.int(request.params.id)
       });
-      return meta.new;
+      const json = parseRecord(records[0]);
+      return json["c"];
     }
   }
 });
@@ -235,7 +268,7 @@ server.route({
 
 server.route({
   method: "GET",
-  path: "/companies/{key}/users",
+  path: "/companies/{id}/users",
   options: {
     validate: {
       params: validateParams,
@@ -251,21 +284,16 @@ server.route({
     }
   },
   handler: async (request, h) => {
-    const { key } = request.params;
-    // exclude sensitive info from all records of result
-    const cursor = await db.query({
-      query: `
-        FOR vertex, edge, path IN 1..1
-        INBOUND @startVertex
-        GRAPH "employment"
-        FILTER STARTS_WITH(vertex._id, "users/")
-        RETURN UNSET(vertex, "password")
-      `,
-      bindVars: {
-        startVertex: `companies/${key}`
-      }
+    const { records } = await db.run(`
+      MATCH (u:User)-[r:WORK_AT]->(c:Company)
+      WHERE id(c) = $id
+      RETURN u
+    `, {
+      id: neo4j.int(request.params.id)
     });
-    const documents = await cursor.all();
-    return documents;
+    return records.map(record => {
+      const { u } = parseRecord(record, "password"); // exclude sensitive info from all records of result
+      return u;
+    });
   }
 });
