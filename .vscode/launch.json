@@ -11,7 +11,10 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}\\src\\index.js"
+      "program": "${workspaceFolder}\\src\\index.js",
+      "env": {
+        "NODE_ENV": "production"
+      }
     },
     {
       "type": "node",
@@ -20,7 +23,10 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}\\seed\\index.js"
+      "program": "${workspaceFolder}\\seed\\index.js",
+      "env": {
+        "NODE_ENV": "development"
+      }
     }
   ]
 }

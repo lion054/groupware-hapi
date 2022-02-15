@@ -1,6 +1,8 @@
 const Hapi = require("@hapi/hapi");
 const neo4j = require("neo4j-driver");
 
+console.log(`Running on ${process.env.NODE_ENV} mode...`);
+
 const server = Hapi.server({
   host: process.env.HOST,
   port: process.env.PORT,
