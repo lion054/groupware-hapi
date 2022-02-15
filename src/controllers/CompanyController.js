@@ -2,6 +2,7 @@ const Joi = require("@hapi/joi");
 const Boom = require("@hapi/boom");
 const neo4j = require("neo4j-driver");
 const moment = require("moment");
+const { StatusCodes } = require("http-status-codes");
 const { server, db } = require("../server");
 const { CompanySchema, UserSchema } = require("../schemas");
 const { parseRecord } = require("../helpers");
@@ -143,7 +144,7 @@ server.route({
       since: moment.utc(since).local(true).format("YYYY-MM-DD") // input may be in various format
     });
     const { c } = parseRecord(records[0]);
-    return c;
+    return h.response(c).code(StatusCodes.CREATED);
   }
 });
 
@@ -176,9 +177,7 @@ server.route({
   handler: async (request, h) => {
     const { name, since } = request.payload;
     const terms = ["c.updatedAt = datetime()"];
-    const bindVars = {
-      id: neo4j.int(request.params.id)
-    };
+    const bindVars = {};
     if (!!name) {
       terms.push("c.name = $name");
       bindVars.name = name;
@@ -192,7 +191,10 @@ server.route({
       WHERE id(c) = $id
       SET ${terms.join(", ")}
       RETURN c
-    `, bindVars);
+    `, {
+      id: neo4j.int(request.params.id),
+      ...bindVars
+    });
     const { c } = parseRecord(records[0]);
     return c;
   }
@@ -207,7 +209,7 @@ server.route({
     validate: {
       params: validateParams,
       payload: Joi.object({
-        mode: Joi.string().valid("erase", "trash", "restore"),
+        mode: Joi.string().valid("erase", "trash", "restore")
       }),
       options: {
         abortEarly: false
@@ -237,7 +239,7 @@ server.route({
       `, {
         id: neo4j.int(request.params.id)
       });
-      return h.response().code(204);
+      return h.response().code(StatusCodes.NO_CONTENT);
     } else if (mode === "trash") {
       const { records } = await db.run(`
         MATCH (c:Company)

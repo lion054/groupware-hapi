@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const md5 = require("md5");
 const neo4j = require("neo4j-driver");
+const { StatusCodes } = require("http-status-codes");
 const { server, db } = require("../server");
 const { CompanySchema, UserSchema } = require("../schemas");
 const { checkUnique, createNestedDirectory, deleteDirectory, acceptFile, parseRecord } = require("../helpers");
@@ -113,9 +114,8 @@ server.route({
   options: {
     payload: {
       maxBytes: 5 * 1024 * 1024,
-      output: "stream",
       parse: true,
-      multipart: true
+      multipart: { output: "stream" }
     },
     validate: {
       payload: Joi.object({
@@ -148,7 +148,7 @@ server.route({
       throw Boom.conflict("This email address was registered already");
     }
     let res = await db.run(`
-      CREATE (u:User{
+      CREATE (u:User {
         name: $name,
         email: $email,
         password: $password,
@@ -179,7 +179,7 @@ server.route({
       avatar: `users/${json["u"].id}/${fileDetails.fileName}`
     });
     json = parseRecord(res.records[0], "password"); // exclude sensitive info from record of result
-    return json["u"];
+    return h.response(json["u"]).code(StatusCodes.CREATED);
   }
 });
 
@@ -226,9 +226,7 @@ server.route({
     const { id } = request.params;
     const { name, email, password, avatar } = request.payload; // don't save password_confirmation in record
     const terms = ["u.updatedAt = datetime()"];
-    const bindVars = {
-      id: neo4j.int(id)
-    };
+    const bindVars = {};
     if (!!name) {
       terms.push("u.name = $name");
       bindVars.name = name;
@@ -272,7 +270,10 @@ server.route({
       WHERE id(u) = $id
       SET ${terms.join(", ")}
       RETURN u
-    `, bindVars);
+    `, {
+      id: neo4j.int(id),
+      ...bindVars
+    });
     const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
     return u;
   }
@@ -287,7 +288,7 @@ server.route({
     validate: {
       params: validateParams,
       payload: Joi.object({
-        mode: Joi.string().valid("erase", "trash", "restore"),
+        mode: Joi.string().valid("erase", "trash", "restore")
       }),
       options: {
         abortEarly: false
@@ -319,7 +320,7 @@ server.route({
       `, {
         id: neo4j.int(id)
       });
-      return h.response().code(204);
+      return h.response().code(StatusCodes.NO_CONTENT);
     } else if (mode === "trash") {
       const { records } = await db.run(`
         MATCH (u:User)
