@@ -55,6 +55,7 @@ server.route({
       query.push("WHERE c.name CONTAINS $search");
       bindVars.search = search;
     }
+    query.push("RETURN c");
     if (!!sort_by) {
       query.push(`ORDER BY c.${sort_by}`);
     }
@@ -62,7 +63,6 @@ server.route({
       query.push("SKIP 0 LIMIT $limit");
       bindVars.limit = limit;
     }
-    query.push("RETURN c");
 
     const { records } = await db.run(query.join(" "), bindVars);
     return records.map(record => {
