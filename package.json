@@ -4,9 +4,9 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "npx nodemon src/index.js",
-    "seed": "node seed/index.js",
+    "start": "set NODE_ENV=production&& node src/index.js",
+    "dev": "set NODE_ENV=development&& npx nodemon src/index.js",
+    "seed": "set NODE_ENV=development&& node seed/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
