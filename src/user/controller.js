@@ -6,22 +6,10 @@ const md5 = require("md5");
 const neo4j = require("neo4j-driver");
 const { StatusCodes } = require("http-status-codes");
 const { server, db } = require("../server");
-const { CompanySchema, UserSchema } = require("../schemas");
-const { checkUnique, createNestedDirectory, deleteDirectory, acceptFile, parseRecord } = require("../helpers");
-
-const validateParams = async (value, options) => {
-  const { records } = await db.run(`
-    MATCH (u:User)
-    WHERE id(u) = $id
-    RETURN COUNT(*)
-  `, {
-    id: neo4j.int(value.id)
-  });
-  if (neo4j.integer.toNumber(records[0].get(0)) === 1) {
-    return value;
-  }
-  throw Boom.notFound("This user does not exist");
-}
+const { FindSchema, StoreSchema, UpdateSchema, UserSchema, getUserResp, validateUriPath } = require("./model");
+const { DeleteSchema } = require("../model");
+const { checkUnique, createNestedDirectory, deleteDirectory, acceptFile } = require("../helpers");
+const { CompanySchema } = require("../company/model");
 
 // find some users
 
@@ -30,11 +18,7 @@ server.route({
   path: "/users",
   options: {
     validate: {
-      query: Joi.object({
-        search: Joi.string().trim(),
-        sort_by: Joi.string().valid("name", "email"),
-        limit: Joi.number().integer().min(5).max(100)
-      }),
+      query: FindSchema,
       options: {
         abortEarly: false
       },
@@ -67,10 +51,7 @@ server.route({
     }
 
     const { records } = await db.run(query.join(" "), bindVars);
-    return records.map(record => {
-      const { u } = parseRecord(record, "password"); // exclude sensitive info from all records of result
-      return u;
-    });
+    return records.map(record => getUserResp(record));
   }
 });
 
@@ -80,12 +61,6 @@ server.route({
   method: "GET",
   path: "/users/{id}",
   options: {
-    validate: {
-      params: validateParams,
-      failAction: (request, h, err) => {
-        throw err;
-      }
-    },
     response: {
       schema: UserSchema,
       failAction: async (request, h, err) => {
@@ -101,8 +76,10 @@ server.route({
     `, {
       id: neo4j.int(request.params.id)
     });
-    const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
-    return u;
+    if (records.length === 0) {
+      throw Boom.notFound("This user does not exist");
+    }
+    return getUserResp(records[0]);
   }
 });
 
@@ -118,15 +95,7 @@ server.route({
       multipart: { output: "stream" }
     },
     validate: {
-      payload: Joi.object({
-        name: Joi.string().trim().required(),
-        email: Joi.string().email().required(),
-        password: Joi.string().min(6).required(),
-        password_confirmation: Joi.any().equal(
-          Joi.ref("password")
-        ).required(),
-        avatar: Joi.any().required()
-      }),
+      payload: StoreSchema,
       options: {
         abortEarly: false
       },
@@ -161,8 +130,8 @@ server.route({
       email,
       password: md5(password)
     });
-    let json = parseRecord(res.records[0], "password"); // exclude sensitive info from record of result
-    const dirPath = createNestedDirectory(["..", "storage", "users", json["u"].id]);
+    const user = getUserResp(res.records[0]);
+    const dirPath = createNestedDirectory(["..", "storage", "users", user.id]);
     const fileDetails = await acceptFile(avatar, {
       destDir: dirPath,
       fileFilter: (fileName) => {
@@ -175,11 +144,10 @@ server.route({
       SET u.avatar = $avatar
       RETURN u
     `, {
-      id: neo4j.int(json["u"].id),
-      avatar: `users/${json["u"].id}/${fileDetails.fileName}`
+      id: neo4j.int(user.id),
+      avatar: `users/${user.id}/${fileDetails.fileName}`
     });
-    json = parseRecord(res.records[0], "password"); // exclude sensitive info from record of result
-    return h.response(json["u"]).code(StatusCodes.CREATED);
+    return h.response(getUserResp(res.records[0])).code(StatusCodes.CREATED);
   }
 });
 
@@ -195,19 +163,8 @@ server.route({
       multipart: { output: "stream" }
     },
     validate: {
-      params: validateParams,
-      payload: Joi.object({
-        name: Joi.string().trim(),
-        email: Joi.string().email(),
-        password_confirmation: Joi.when("password", {
-          is: Joi.exist(),
-          then: Joi.any().valid(
-            Joi.ref("password")
-          ).required()
-        }),
-        password: Joi.string().min(6),
-        avatar: Joi.any()
-      }).required().min(1),
+      params: validateUriPath,
+      payload: UpdateSchema,
       options: {
         abortEarly: false
       },
@@ -261,8 +218,8 @@ server.route({
       `, {
         id: neo4j.int(id)
       });
-      const { u } = parseRecord(records[0], "password");
-      const oldPath = path.join(__dirname, "../../storage/", u.avatar);
+      const user = getUserResp(records[0]);
+      const oldPath = path.join(__dirname, "../../storage/", user.avatar);
       fs.rmSync(oldPath);
     }
     const { records } = await db.run(`
@@ -274,8 +231,7 @@ server.route({
       id: neo4j.int(id),
       ...bindVars
     });
-    const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
-    return u;
+    return getUserResp(records[0]);
   }
 });
 
@@ -286,10 +242,8 @@ server.route({
   path: "/users/{id}",
   options: {
     validate: {
-      params: validateParams,
-      payload: Joi.object({
-        mode: Joi.string().valid("erase", "trash", "restore")
-      }),
+      params: validateUriPath,
+      payload: DeleteSchema,
       options: {
         abortEarly: false
       },
@@ -330,8 +284,7 @@ server.route({
       `, {
         id: neo4j.int(id)
       });
-      const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
-      return u;
+      return getUserResp(records[0]);
     } else if (mode === "restore") {
       const { records } = await db.run(`
         MATCH (u:User)
@@ -341,8 +294,7 @@ server.route({
       `, {
         id: neo4j.int(id)
       });
-      const { u } = parseRecord(records[0], "password"); // exclude sensitive info from record of result
-      return u;
+      return getUserResp(records[0]);
     }
   }
 });
@@ -354,7 +306,7 @@ server.route({
   path: "/users/{id}/company",
   options: {
     validate: {
-      params: validateParams,
+      params: validateUriPath,
       failAction: (request, h, err) => {
         throw err;
       }
@@ -376,10 +328,8 @@ server.route({
     });
     if (records.length === 0) {
       throw Boom.notFound("This user is not employed by any company");
-    } else {
-      const { c } = parseRecord(records[0]);
-      return c;
     }
+    return getUserResp(records[0]);
   }
 });
 
@@ -390,7 +340,7 @@ server.route({
   path: "/users/{id}/collegues",
   options: {
     validate: {
-      params: validateParams,
+      params: validateUriPath,
       failAction: (request, h, err) => {
         throw err;
       }
@@ -410,9 +360,6 @@ server.route({
     `, {
       id: neo4j.int(request.params.id)
     });
-    return records.map(record => {
-      const { n } = parseRecord(record, "password"); // exclude sensitive info from all records of result
-      return n;
-    });
+    return records.map(record => getUserResp(record));
   }
 });

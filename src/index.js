@@ -3,8 +3,8 @@
 require("dotenv").config();
 const { server, init } = require("./server");
 
-require("./controllers/CompanyController");
-require("./controllers/UserController");
+require("./company/controller");
+require("./user/controller");
 
 server.route({
   method: "GET",

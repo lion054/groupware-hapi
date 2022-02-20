@@ -4,22 +4,9 @@ const neo4j = require("neo4j-driver");
 const moment = require("moment");
 const { StatusCodes } = require("http-status-codes");
 const { server, db } = require("../server");
-const { CompanySchema, UserSchema } = require("../schemas");
-const { parseRecord } = require("../helpers");
-
-const validateParams = async (value, options) => {
-  const { records } = await db.run(`
-    MATCH (c:Company)
-    WHERE id(c) = $id
-    RETURN COUNT(*)
-  `, {
-    id: neo4j.int(value.id)
-  });
-  if (neo4j.integer.toNumber(records[0].get(0)) === 1) {
-    return value;
-  }
-  throw Boom.notFound("This company does not exist");
-}
+const { FindSchema, StoreSchema, UpdateSchema, CompanySchema, validateUriPath, getCompanyResp, getUserResp } = require("./model");
+const { UserSchema } = require("../user/model");
+const { DeleteSchema } = require("../model");
 
 // find some companies
 
@@ -28,11 +15,7 @@ server.route({
   path: "/companies",
   options: {
     validate: {
-      query: Joi.object({
-        search: Joi.string().trim(),
-        sort_by: Joi.string().valid("name", "since"),
-        limit: Joi.number().integer().min(5).max(100)
-      }),
+      query: FindSchema,
       options: {
         abortEarly: false
       },
@@ -65,10 +48,7 @@ server.route({
     }
 
     const { records } = await db.run(query.join(" "), bindVars);
-    return records.map(record => {
-      const { c } = parseRecord(record);
-      return c;
-    });
+    return records.map(record => getCompanyResp(record));
   }
 });
 
@@ -78,12 +58,6 @@ server.route({
   method: "GET",
   path: "/companies/{id}",
   options: {
-    validate: {
-      params: validateParams,
-      failAction: (request, h, err) => {
-        throw err;
-      }
-    },
     response: {
       schema: CompanySchema,
       failAction: async (request, h, err) => {
@@ -99,8 +73,7 @@ server.route({
     `, {
       id: neo4j.int(request.params.id)
     });
-    const { c } = parseRecord(records[0]);
-    return c;
+    return getCompanyResp(records[0]);
   }
 });
 
@@ -111,10 +84,7 @@ server.route({
   path: "/companies",
   options: {
     validate: {
-      payload: Joi.object({
-        name: Joi.string().trim().required(),
-        since: Joi.date().required()
-      }),
+      payload: StoreSchema,
       options: {
         abortEarly: false
       },
@@ -143,8 +113,7 @@ server.route({
       name,
       since: moment.utc(since).local(true).format("YYYY-MM-DD") // input may be in various format
     });
-    const { c } = parseRecord(records[0]);
-    return h.response(c).code(StatusCodes.CREATED);
+    return h.response(getCompanyResp(records[0])).code(StatusCodes.CREATED);
   }
 });
 
@@ -155,11 +124,8 @@ server.route({
   path: "/companies/{id}",
   options: {
     validate: {
-      params: validateParams,
-      payload: Joi.object({
-        name: Joi.string().trim(),
-        since: Joi.date()
-      }).required().min(1),
+      params: validateUriPath,
+      payload: UpdateSchema,
       options: {
         abortEarly: false
       },
@@ -195,8 +161,7 @@ server.route({
       id: neo4j.int(request.params.id),
       ...bindVars
     });
-    const { c } = parseRecord(records[0]);
-    return c;
+    return getCompanyResp(records[0]);
   }
 });
 
@@ -207,10 +172,8 @@ server.route({
   path: "/companies/{id}",
   options: {
     validate: {
-      params: validateParams,
-      payload: Joi.object({
-        mode: Joi.string().valid("erase", "trash", "restore")
-      }),
+      params: validateUriPath,
+      payload: DeleteSchema,
       options: {
         abortEarly: false
       },
@@ -249,8 +212,7 @@ server.route({
       `, {
         id: neo4j.int(request.params.id)
       });
-      const { c } = parseRecord(records[0]);
-      return c;
+      return getCompanyResp(records[0]);
     } else if (mode === "restore") {
       const { records } = await db.run(`
         MATCH (c:Company)
@@ -260,8 +222,7 @@ server.route({
       `, {
         id: neo4j.int(request.params.id)
       });
-      const { c } = parseRecord(records[0]);
-      return c;
+      return getCompanyResp(records[0]);
     }
   }
 });
@@ -273,7 +234,7 @@ server.route({
   path: "/companies/{id}/users",
   options: {
     validate: {
-      params: validateParams,
+      params: validateUriPath,
       failAction: (request, h, err) => {
         throw err;
       }
@@ -293,9 +254,6 @@ server.route({
     `, {
       id: neo4j.int(request.params.id)
     });
-    return records.map(record => {
-      const { u } = parseRecord(record, "password"); // exclude sensitive info from all records of result
-      return u;
-    });
+    return records.map(record => getUserResp(record));
   }
 });
